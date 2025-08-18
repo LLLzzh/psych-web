@@ -1,79 +1,126 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Engine } from "../engine/Engine";
-import { encodeMessage, decodeMessage, type Message } from "../protocol/message";
 import { useConfigStore } from "../store/configStore";
-import { buildAuthMessage } from "../protocol/auth";
+import { useChatStore, handleResponse } from "../store/chatStore";
+import { type AuthPayload, AuthType } from "../protocol/auth";
 
 export function useChat(url: string, userId: string, token: string) {
-  const [messages, setMessages] = useState<Message[]>([]);
   const engineRef = useRef<Engine | null>(null);
   const setConfig = useConfigStore((state) => state.setConfig);
+  const {
+    setConnected,
+    setAuthenticated,
+    setError,
+    clearError,
+    nextCmdId,
+    isConnected,
+    isAuthenticated,
+  } = useChatStore();
 
   useEffect(() => {
     const engine = new Engine(url);
     engineRef.current = engine;
 
+    // WebSocket连接建立
     engine.emitter.on("open", () => {
       console.log("WebSocket 已连接");
-      const authMsg = buildAuthMessage(userId, token);
-      engine.sendText(new TextDecoder().decode(authMsg));
+      setConnected(true);
+      clearError();
     });
 
-    engine.emitter.on("text", (txt) => {
-      try {
-        const msg = JSON.parse(txt) as Message;
-        if (msg.Type === "Config") {
-          console.log("Config", msg.Payload);
-          setConfig(msg.Payload);
-        }
-        else if (msg.Type === "Text") {
-          console.log("Text", msg.Payload);
-          setMessages((prev) => [...prev, msg]);
-        }
-      } catch (error) {
-        console.warn("Failed to parse text message as JSON:", error);
-        // 如果不是JSON格式，直接显示原始文本
-        setMessages((prev) => [...prev, {
-          Type: "Text",
-          Payload: txt,
-          Timestamp: Math.floor(Date.now() / 1000),
-        }]);
+    // 协议连接成功（收到meta）
+    engine.emitter.on("connected", () => {
+      console.log("协议连接成功，开始心跳");
+      engine.startHeartbeatAfterMeta();
+      
+      // 发送认证消息
+      const authPayload: AuthPayload = {
+        auth_id: userId,
+        auth_type: AuthType.AlreadyAuth,
+        verify_code: token,
+        info: { from: "web-demo" }
+      };
+      
+      const authMessage = engine.handler.createAuthMessage(authPayload);
+      if (authMessage) {
+        engine.sendBinary(authMessage);
       }
     });
 
-    engine.emitter.on("binary", (buffer) => {
-      try {
-        const msg = decodeMessage(buffer);
-        if (msg) {
-          if (msg.Type === "Config") {
-            console.log("Config (binary)", msg.Payload);
-            setConfig(msg.Payload);
-          }
-          else if (msg.Type === "Text") {
-            console.log("Text (binary)", msg.Payload);
-            setMessages((prev) => [...prev, msg]);
-          }
-        } else {
-          console.warn("Failed to decode binary message");
-        }
-      } catch (error) {
-        console.error("Error processing binary message:", error);
-      }
+    // 收到配置消息
+    engine.emitter.on("config", (config) => {
+      console.log("收到配置:", config);
+      setConfig(config);
+      setAuthenticated(true);
+    });
+
+    // 收到响应消息
+    engine.emitter.on("response", (response) => {
+      console.log("收到响应:", response);
+      handleResponse(response);
+    });
+
+    // 收到协议错误
+    engine.emitter.on("protocolError", (error) => {
+      console.error("协议错误:", error);
+      setError(error.message || "协议错误");
+    });
+
+    // WebSocket错误
+    engine.emitter.on("wsError", (error) => {
+      console.error("WebSocket错误:", error);
+      setError("连接错误");
+      setConnected(false);
+    });
+
+    // 连接关闭
+    engine.emitter.on("close", () => {
+      console.log("WebSocket连接关闭");
+      setConnected(false);
+      setAuthenticated(false);
     });
 
     engine.connect();
 
-    return () => engine.close();
-  }, [url, userId, token, setConfig]);
+    return () => {
+      engine.close();
+      setConnected(false);
+      setAuthenticated(false);
+    };
+  }, [url, userId, token, setConfig, setConnected, setAuthenticated, setError, clearError]);
 
-  const sendText = (text: string) => {
-    const encoded = encodeMessage({
-      Type: "Text",
-      Payload: text,
-      Timestamp: Math.floor(Date.now() / 1000),
-    });
-    engineRef.current?.sendText(encoded);
+  // 发送文本消息
+  const sendText = async (text: string) => {
+    if (!engineRef.current || !isConnected || !isAuthenticated) {
+      console.warn("连接未就绪，无法发送消息");
+      return;
+    }
+
+    const cmdId = nextCmdId();
+    const cmdMessage = engineRef.current.handler.createTextCmd(cmdId, text);
+    if (cmdMessage) {
+      await engineRef.current.sendBinary(cmdMessage);
+    }
   };
 
-  return { messages, sendText };
+  // 发送音频ASR消息
+  const sendAudioASR = async (audioData: Uint8Array) => {
+    if (!engineRef.current || !isConnected || !isAuthenticated) {
+      console.warn("连接未就绪，无法发送消息");
+      return;
+    }
+
+    const cmdId = nextCmdId();
+    const cmdMessage = engineRef.current.handler.createAudioASRCmd(cmdId, audioData);
+    if (cmdMessage) {
+      await engineRef.current.sendBinary(cmdMessage);
+    }
+  };
+
+  return { 
+    sendText, 
+    sendAudioASR,
+    isConnected,
+    isAuthenticated,
+  };
 }
