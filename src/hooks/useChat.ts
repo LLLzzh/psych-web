@@ -3,8 +3,10 @@ import { Engine } from "../engine/Engine";
 import { useConfigStore } from "../store/configStore";
 import { useChatStore, handleResponse } from "../store/chatStore";
 import { type AuthPayload, AuthType } from "../protocol/auth";
+import type { UserInfo } from "../apis/login";
+import { decodeMessage, type Meta } from "../protocol/message";
 
-export function useChat(url: string, userId: string, token: string) {
+export function useChat(url: string, userId: string, token: string, info: UserInfo) {
   const engineRef = useRef<Engine | null>(null);
   const setConfig = useConfigStore((state) => state.setConfig);
   const {
@@ -34,16 +36,18 @@ export function useChat(url: string, userId: string, token: string) {
       engine.startHeartbeatAfterMeta();
       
       // 发送认证消息
+      
       const authPayload: AuthPayload = {
         auth_id: userId,
         auth_type: AuthType.AlreadyAuth,
         verify_code: token,
-        info: { from: "web-demo" }
+        info: info
       };
-      
       const authMessage = engine.handler.createAuthMessage(authPayload);
+      console.log('authMessage',authMessage)
       if (authMessage) {
         engine.sendBinary(authMessage);
+        console.log(decodeMessage(authMessage,engine.handler.getMeta() as Meta))
       }
     });
 
@@ -87,7 +91,7 @@ export function useChat(url: string, userId: string, token: string) {
       setConnected(false);
       setAuthenticated(false);
     };
-  }, [url, userId, token, setConfig, setConnected, setAuthenticated, setError, clearError]);
+  }, [url, userId, token, info, setConfig, setConnected, setAuthenticated, setError, clearError ]);
 
   // 发送文本消息
   const sendText = async (text: string) => {

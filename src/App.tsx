@@ -1,140 +1,79 @@
-import { useState } from "react";
-import { useChat } from "./hooks/useChat";
-import { useChatStore } from "./store/chatStore";
-import { useConfigStore } from "./store/configStore";
+import { useState, useEffect } from "react";
+import Login from "./components/Login";
+import ChatPage from "./components/ChatPage";
 import "./App.css";
+import { getUserInfo, type UserInfo } from "./apis/login";
+
+// 定义页面类型
+type Page = 'login' | 'chat';
 
 function App() {
-  const [url, setUrl] = useState("ws://localhost:8080/ws");
-  const [userId, setUserId] = useState("test_user");
-  const [token, setToken] = useState("test_token");
-  const [inputText, setInputText] = useState("");
+  const [currentPage, setCurrentPage] = useState<Page>('login');
+  const [url, setUrl] = useState("wss://api.xhpolaris.com/psych/chat");
+  const [userId, setUserId] = useState("");
+  const [token, setToken] = useState("");
+  const [info, setInfo] = useState<UserInfo>({
+    userId: "",
+    strong: false,
+    unitId: "",
+    studentId: ""
+  });
 
-  const { sendText, isConnected, isAuthenticated } = useChat(url, userId, token);
-  const { messages, error, clearMessages, clearError } = useChatStore();
-  const { config } = useConfigStore();
-
-  const handleSendText = async () => {
-    if (inputText.trim()) {
-      await sendText(inputText.trim());
-      setInputText("");
+  // 检查本地存储的登录状态
+  useEffect(() => {
+    const savedUserId = localStorage.getItem('chat_userId');
+    const savedToken = localStorage.getItem('chat_token');
+    const savedInfo = localStorage.getItem('chat_info');
+    
+    if (savedUserId && savedToken && savedInfo) {
+      setUserId(savedUserId);
+      setToken(savedToken);
+      setInfo(JSON.parse(savedInfo));
+      setCurrentPage('chat');
     }
+  }, []);
+
+  const handleLoginSuccess = async (newUserId: string, newToken: string, newInfo: UserInfo) => {
+    setUserId(newUserId);
+    setToken(newToken);
+    setInfo(newInfo);
+    
+    // 保存到本地存储
+    localStorage.setItem('chat_userId', newUserId);
+    localStorage.setItem('chat_token', newToken);
+    localStorage.setItem('chat_info', JSON.stringify(newInfo));
+
+    const res = await getUserInfo()
+    console.log(res)
+    
+    setCurrentPage('chat');
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSendText();
-    }
+  const handleLogout = () => {
+    // 清除本地存储
+    localStorage.removeItem('chat_userId');
+    localStorage.removeItem('chat_token');
+    localStorage.removeItem('chat_info');
+    
+    setUserId("");
+    setToken("");
+    setCurrentPage('login');
   };
+
+  // 根据当前页面渲染对应组件
+  if (currentPage === 'login') {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
 
   return (
-    <div className="app">
-      <header className="app-header">
-        <h1>WebSocket Chat Demo</h1>
-        <div className="status">
-          <span className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}>
-            {isConnected ? '已连接' : '未连接'}
-          </span>
-          <span className={`status-indicator ${isAuthenticated ? 'authenticated' : 'not-authenticated'}`}>
-            {isAuthenticated ? '已认证' : '未认证'}
-          </span>
-        </div>
-      </header>
-
-      <div className="config-section">
-        <h3>连接配置</h3>
-        <div className="config-inputs">
-          <input
-            type="text"
-            placeholder="WebSocket URL"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            disabled={isConnected}
-          />
-          <input
-            type="text"
-            placeholder="用户ID"
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-            disabled={isConnected}
-          />
-          <input
-            type="text"
-            placeholder="Token"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            disabled={isConnected}
-          />
-        </div>
-      </div>
-
-      {config && (
-        <div className="config-info">
-          <h3>配置信息</h3>
-          <pre>{JSON.stringify(config, null, 2)}</pre>
-        </div>
-      )}
-
-      {error && (
-        <div className="error-message">
-          <span>{error}</span>
-          <button onClick={clearError}>关闭</button>
-        </div>
-      )}
-
-      <div className="chat-container">
-        <div className="messages">
-          {messages.length === 0 ? (
-            <div className="empty-state">
-              <p>暂无消息，开始对话吧！</p>
-            </div>
-          ) : (
-            messages.map((message) => (
-              <div key={message.id} className={`message ${message.type}`}>
-                <div className="message-content">
-                  <div className="message-text">{message.content}</div>
-                  {message.audioUrl && (
-                    <audio controls src={message.audioUrl} className="message-audio" />
-                  )}
-                </div>
-                <div className="message-time">
-                  {new Date(message.timestamp).toLocaleTimeString()}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="input-section">
-          <div className="input-container">
-            <textarea
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="输入消息..."
-              disabled={!isConnected || !isAuthenticated}
-              rows={3}
-            />
-            <div className="input-actions">
-              <button
-                onClick={handleSendText}
-                disabled={!isConnected || !isAuthenticated || !inputText.trim()}
-                className="send-button"
-              >
-                发送
-              </button>
-              <button
-                onClick={clearMessages}
-                className="clear-button"
-              >
-                清空消息
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <ChatPage 
+      url={url}
+      userId={userId}
+      token={token}
+      info={info}
+      onLogout={handleLogout}
+      onConfigChange={(newUrl: string) => setUrl(newUrl)}
+    />
   );
 }
 

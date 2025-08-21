@@ -1,3 +1,5 @@
+import pako from 'pako';
+
 // 协议版本和序列化类型
 export interface Meta {
   version: number;
@@ -20,7 +22,7 @@ export type MType = typeof MType[keyof typeof MType];
 // 消息结构
 export interface Message {
   type: MType;
-  payload: Uint8Array;
+  payload: unknown; 
   timestamp: number;
 }
 
@@ -90,18 +92,14 @@ export interface RespPayload {
 // 消息编码函数
 export function encodeMessage(msg: Message, meta: Meta): ArrayBuffer {
   // 1. 序列化Message对象
-  const jsonStr = JSON.stringify({
-    type: msg.type,
-    payload: Array.from(msg.payload), // 将Uint8Array转换为普通数组
-    timestamp: msg.timestamp,
-  });
-  
+  const jsonStr = JSON.stringify(msg);
   const data = new TextEncoder().encode(jsonStr);
   
-  // 2. 压缩（如果启用）
   if (meta.compression === 1) {
-    // TODO: 实现GZIP压缩
-    // 暂时不压缩
+    // 实现GZIP压缩
+    console.log('compressing',jsonStr)
+    const compressedData = pako.gzip(jsonStr);
+    return compressedData;
   }
   
   return data.buffer;
@@ -114,17 +112,25 @@ export function decodeMessage(buffer: ArrayBuffer, meta: Meta): Message | null {
     
     // 1. 解压（如果启用）
     if (meta.compression === 1) {
-      // TODO: 实现GZIP解压
-      // 暂时不解压
+      // 实现GZIP解压
+      const decompressedData = pako.inflate(data);
+      const jsonStr = new TextDecoder().decode(decompressedData);
+      const obj = JSON.parse(jsonStr);
+      
+      return {
+        type: obj.type,
+        payload: JSON.parse(obj.payload), // 直接使用解码后的 payload
+        timestamp: obj.timestamp,
+      };
     }
     
-    // 2. 反序列化
+    // 2. 反序列化（未压缩的情况）
     const jsonStr = new TextDecoder().decode(data);
     const obj = JSON.parse(jsonStr);
     
     return {
       type: obj.type,
-      payload: new Uint8Array(obj.payload), // 将数组转换回Uint8Array
+      payload: obj.payload, // 直接使用解码后的 payload
       timestamp: obj.timestamp,
     };
   } catch (error) {
@@ -135,10 +141,9 @@ export function decodeMessage(buffer: ArrayBuffer, meta: Meta): Message | null {
 
 // 创建消息的辅助函数
 export function createMessage(type: MType, payload: unknown, timestamp?: number): Message {
-  const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
   return {
     type,
-    payload: payloadBytes,
+    payload: JSON.stringify(payload), // payload 序列化
     timestamp: timestamp || Math.floor(Date.now() / 1000),
   };
 }
@@ -146,8 +151,8 @@ export function createMessage(type: MType, payload: unknown, timestamp?: number)
 // 解析消息payload的辅助函数
 export function parsePayload<T>(message: Message): T | null {
   try {
-    const jsonStr = new TextDecoder().decode(message.payload);
-    return JSON.parse(jsonStr) as T;
+    // payload 现在是JSON字符串，需要解析
+    return JSON.parse(message.payload as string) as T;
   } catch (error) {
     console.error("Failed to parse payload:", error);
     return null;

@@ -60,6 +60,7 @@ export class Handler {
     try {
       const meta = JSON.parse(text) as Meta;
       this.setMeta(meta);
+      console.log('meta set:',meta)
       this.emitter.emit("connected");
     } catch (error) {
       console.error("Failed to parse meta message:", error);
@@ -74,25 +75,25 @@ export class Handler {
         break;
       
       case MType.Config:
-        const config = parsePayload<ConfigPayload>(message);
+        { const config = parsePayload<ConfigPayload>(message);
         if (config) {
           this.emitter.emit("config", config);
         }
-        break;
+        break; }
       
       case MType.Err:
-        const error = parsePayload<ErrPayload>(message);
+        { const error = parsePayload<ErrPayload>(message);
         if (error) {
           this.emitter.emit("error", error);
         }
-        break;
+        break; }
       
       case MType.Resp:
-        const response = parsePayload<RespPayload>(message);
+        { const response = parsePayload<RespPayload>(message);
         if (response) {
           this.emitter.emit("response", response);
         }
-        break;
+        break; }
       
       default:
         console.warn("Unhandled message type:", message.type);
@@ -107,6 +108,7 @@ export class Handler {
     }
 
     const message = createMessage(MType.Auth, authPayload);
+    console.log('createAuthMessage',message)
     return encodeMessage(message, this.meta);
   }
 

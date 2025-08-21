@@ -18,8 +18,8 @@ export class Engine {
   private ws?: WebSocket;
   private heartbeatTimer?: number;
   private reconnectTimer?: number;
-  private reconnectDelay = 2000;
-  private isManuallyClosed = false;
+  // private reconnectDelay = 2000;
+  // private isManuallyClosed = false;
   private writeMutex = false; // 写入互斥锁
   public emitter = mitt<Events>();
   public handler: Handler;
@@ -51,11 +51,12 @@ export class Engine {
       console.warn("WebSocket is already connected or connecting.");
       return;
     }
-    this.isManuallyClosed = false;
+    // this.isManuallyClosed = false;
 
     this.ws = new WebSocket(this.url);
 
     this.ws.onopen = () => {
+      console.log('onopen');
       if (this.reconnectTimer) {
         clearTimeout(this.reconnectTimer);
         this.reconnectTimer = undefined;
@@ -82,11 +83,11 @@ export class Engine {
     this.ws.onclose = () => {
       this.emitter.emit("close");
       this.stopHeartbeat();
-      if (!this.isManuallyClosed) {
-        this.reconnectTimer = window.setTimeout(() => {
-          this.connect();
-        }, this.reconnectDelay);
-      }
+      // if (!this.isManuallyClosed) {
+      //   this.reconnectTimer = window.setTimeout(() => {
+      //     this.connect();
+      //   }, this.reconnectDelay);
+      // }
     };
 
     this.ws.onerror = (err) => {
@@ -126,10 +127,16 @@ export class Engine {
     await this.write(text);
   }
 
-  // 发送Ping消息（心跳）
+  // 发送WebSocket原生ping控制帧
   async sendPing(): Promise<void> {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send("Ping");
+      // 发送WebSocket ping控制帧
+      // 创建一个ping帧（opcode 0x9）
+      const pingFrame = new ArrayBuffer(2);
+      const view = new DataView(pingFrame);
+      view.setUint8(0, 0x89); // FIN=1, RSV=0, opcode=9 (ping)
+      view.setUint8(1, 0x00); // MASK=0, payload length=0
+      this.ws.send(pingFrame);
     }
   }
 
@@ -153,7 +160,7 @@ export class Engine {
   }
 
   close() {
-    this.isManuallyClosed = true;
+    // this.isManuallyClosed = true;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = undefined;
