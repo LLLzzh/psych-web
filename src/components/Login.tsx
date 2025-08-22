@@ -12,7 +12,7 @@ function Login({ onLoginSuccess }: LoginProps) {
     const [verifyCode, setVerifyCode] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
-    const [info, setInfo] = useState<UserInfo | null>(null);
+    const [, setInfo] = useState<UserInfo | null>(null);
 
     const unitId: string = "68a14236ef1dc2bc4149606c"
 

@@ -1,4 +1,14 @@
+// 安全的 Base64 -> UTF8 字符串解码
+function base64ToUtf8(base64: string): string {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new TextDecoder("utf-8").decode(bytes);
+}
 import pako from 'pako';
+import { formatTime } from '../utils/time';
 
 // 协议版本和序列化类型
 export interface Meta {
@@ -23,7 +33,7 @@ export type MType = typeof MType[keyof typeof MType];
 export interface Message {
   type: MType;
   payload: unknown; 
-  timestamp: number;
+  timestamp: string;
 }
 
 // 错误消息结构
@@ -38,16 +48,16 @@ export interface ConfigPayload {
   ASR?: {
     id: string;
     format: string;
-    sample_rate: number;
+    sampleRate: number;
     channels: number;
-    bit_depth: number;
+    bitDepth: number;
   };
   TTS?: {
     id: string;
     format: string;
-    sample_rate: number;
+    sampleRate: number;
     channels: number;
-    bit_depth: number;
+    bitDepth: number;
   };
   Chat?: {
     id: string;
@@ -93,15 +103,15 @@ export interface RespPayload {
 export function encodeMessage(msg: Message, meta: Meta): ArrayBuffer {
   // 1. 序列化Message对象
   const jsonStr = JSON.stringify(msg);
-  const data = new TextEncoder().encode(jsonStr);
   
   if (meta.compression === 1) {
     // 实现GZIP压缩
-    console.log('compressing',jsonStr)
+    console.log('message before compressing: \n',jsonStr)
     const compressedData = pako.gzip(jsonStr);
-    return compressedData;
+    return compressedData.buffer;
   }
   
+  const data = new TextEncoder().encode(jsonStr);
   return data.buffer;
 }
 
@@ -115,11 +125,20 @@ export function decodeMessage(buffer: ArrayBuffer, meta: Meta): Message | null {
       // 实现GZIP解压
       const decompressedData = pako.inflate(data);
       const jsonStr = new TextDecoder().decode(decompressedData);
-      const obj = JSON.parse(jsonStr);
       
+      const obj = JSON.parse(jsonStr);
+      const jsonPayload = base64ToUtf8(obj.payload);
+      const payload = JSON.parse(jsonPayload);
+
+      console.log('message: \n',{
+        type: obj.type,
+        payload: payload,
+        timestamp: obj.timestamp,
+      })
+
       return {
         type: obj.type,
-        payload: JSON.parse(obj.payload), // 直接使用解码后的 payload
+        payload: payload,
         timestamp: obj.timestamp,
       };
     }
@@ -130,7 +149,7 @@ export function decodeMessage(buffer: ArrayBuffer, meta: Meta): Message | null {
     
     return {
       type: obj.type,
-      payload: obj.payload, // 直接使用解码后的 payload
+      payload: obj.payload, // payload保持Base64编码状态
       timestamp: obj.timestamp,
     };
   } catch (error) {
@@ -141,20 +160,36 @@ export function decodeMessage(buffer: ArrayBuffer, meta: Meta): Message | null {
 
 // 创建消息的辅助函数
 export function createMessage(type: MType, payload: unknown, timestamp?: number): Message {
+  // 将payload序列化为JSON字符串，然后进行Base64编码
+  const jsonPayload = JSON.stringify(payload);
+  const base64Payload = btoa(jsonPayload);
+  
   return {
     type,
-    payload: JSON.stringify(payload), // payload 序列化
-    timestamp: timestamp || Math.floor(Date.now() / 1000),
+    payload: base64Payload, // payload Base64编码
+    timestamp: formatTime(timestamp || Date.now()),
   };
 }
 
 // 解析消息payload的辅助函数
 export function parsePayload<T>(message: Message): T | null {
   try {
-    // payload 现在是JSON字符串，需要解析
-    return JSON.parse(message.payload as string) as T;
+    // payload 现在是Base64编码的字符串，需要先解码再解析
+    const jsonPayload = base64ToUtf8(message.payload as string);
+    return JSON.parse(jsonPayload) as T;
   } catch (error) {
     console.error("Failed to parse payload:", error);
     return null;
   }
+}
+
+// 将base64字符串转换为ArrayBuffer的工具函数
+export function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
 }

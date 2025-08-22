@@ -2,9 +2,9 @@ import { MType, createMessage } from "./message";
 import type { UserInfo } from "../apis/login";
 
 export interface AuthPayload {
-  auth_id: string;      // 认证ID，如电话号码
-  auth_type: number;    // 校验方式，如Phone
-  verify_code: string;  // 校验令牌，如验证码
+  authId: string;      // 认证ID，如电话号码
+  authType: number;    // 校验方式，如Phone
+  verifyCode: string;  // 校验令牌，如验证码
   info: UserInfo; // 额外信息
 }
 
@@ -19,9 +19,9 @@ export type AuthType = typeof AuthType[keyof typeof AuthType];
 // 构造一个鉴权消息
 export function buildAuthMessage(userId: string, token: string, info: UserInfo) {
   const payload: AuthPayload = {
-    auth_id: userId,
-    auth_type: AuthType.AlreadyAuth,
-    verify_code: token,
+    authId: userId,
+    authType: AuthType.AlreadyAuth,
+    verifyCode: token,
     info: info
   };
 

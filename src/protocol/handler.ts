@@ -51,6 +51,7 @@ export class Handler {
       console.error("Failed to decode message");
       return;
     }
+    console.log('handleBinaryMessage',message)
 
     this.handleMessage(message);
   }
@@ -75,7 +76,9 @@ export class Handler {
         break;
       
       case MType.Config:
-        { const config = parsePayload<ConfigPayload>(message);
+        { 
+          console.log('config message',message)
+          const config = message.payload;
         if (config) {
           this.emitter.emit("config", config);
         }

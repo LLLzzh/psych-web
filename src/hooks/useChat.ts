@@ -38,9 +38,9 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
       // 发送认证消息
       
       const authPayload: AuthPayload = {
-        auth_id: userId,
-        auth_type: AuthType.AlreadyAuth,
-        verify_code: token,
+        authId: userId,
+        authType: AuthType.AlreadyAuth,
+        verifyCode: token,
         info: info
       };
       const authMessage = engine.handler.createAuthMessage(authPayload);
