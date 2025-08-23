@@ -130,16 +130,14 @@ export class Engine {
     await this.write(text);
   }
 
-  // 发送WebSocket原生ping控制帧
+  // 发送ping消息
   async sendPing(): Promise<void> {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      // 发送WebSocket ping控制帧
-      // 创建一个ping帧（opcode 0x9）
-      const pingFrame = new ArrayBuffer(2);
-      const view = new DataView(pingFrame);
-      view.setUint8(0, 0x89); // FIN=1, RSV=0, opcode=9 (ping)
-      view.setUint8(1, 0x00); // MASK=0, payload length=0
-      this.ws.send(pingFrame);
+      // 通过handler创建ping消息
+      const buffer = this.handler.createPingMessage();
+      if (buffer) {
+        await this.sendBinary(buffer);
+      }
     }
   }
 

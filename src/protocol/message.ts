@@ -19,6 +19,7 @@ export interface Meta {
 
 // 消息类型枚举
 export const MType = {
+  Ping: -2,
   Err: -1,
   Meta: 0,
   Auth: 1,
@@ -45,24 +46,35 @@ export interface ErrPayload {
 
 // 配置消息结构
 export interface ConfigPayload {
-  ASR?: {
+  id: string;
+  modelName: string;
+  modelView: string;
+  chatConfig: {
+    id: string;
+  };
+  asrConfig: {
     id: string;
     format: string;
-    sampleRate: number;
+    codec: string;
+    rate: number;
+    bits: number;
     channels: number;
-    bitDepth: number;
+    resultType: string;
   };
-  TTS?: {
+  ttsConfig: {
     id: string;
     format: string;
-    sampleRate: number;
+    codec: string;
+    rate: number;
+    bits: number;
     channels: number;
-    bitDepth: number;
+    resultType: string;
+    speechRate: number;
+    loudnessRate: number;
+    pitchRate: number;
+    lang: string;
   };
-  Chat?: {
-    id: string;
-  };
-  Report?: {
+  reportConfig: {
     id: string;
   };
 }
@@ -160,6 +172,10 @@ export function decodeMessage(buffer: ArrayBuffer, meta: Meta): Message | null {
 
 // 创建消息的辅助函数
 export function createMessage(type: MType, payload: unknown, timestamp?: number): Message {
+
+  if(type === MType.Ping){
+    payload= {data: null}
+  }
   // 将payload序列化为JSON字符串，然后进行Base64编码
   const jsonPayload = JSON.stringify(payload);
   const base64Payload = btoa(jsonPayload);
@@ -174,9 +190,18 @@ export function createMessage(type: MType, payload: unknown, timestamp?: number)
 // 解析消息payload的辅助函数
 export function parsePayload<T>(message: Message): T | null {
   try {
-    // payload 现在是Base64编码的字符串，需要先解码再解析
-    const jsonPayload = base64ToUtf8(message.payload as string);
-    return JSON.parse(jsonPayload) as T;
+    // 如果payload已经是对象，直接返回
+    if (typeof message.payload === 'object' && message.payload !== null) {
+      return message.payload as T;
+    }
+    
+    // 如果payload是Base64编码的字符串，需要先解码再解析
+    if (typeof message.payload === 'string') {
+      const jsonPayload = base64ToUtf8(message.payload);
+      return JSON.parse(jsonPayload) as T;
+    }
+    
+    return null;
   } catch (error) {
     console.error("Failed to parse payload:", error);
     return null;

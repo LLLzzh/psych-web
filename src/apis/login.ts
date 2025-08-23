@@ -46,7 +46,6 @@ export async function login(params:LoginRequset) {
         verifyCode: params.verifyCode
     }
     const res = await request.post("/user/sign_in", data);
-    console.log(res);
     return res;
 }
 

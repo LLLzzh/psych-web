@@ -44,7 +44,7 @@ function App() {
     localStorage.setItem('chat_info', JSON.stringify(newInfo));
 
     const res = await getUserInfo()
-    console.log(res)
+    console.log('userInfo',res)
     
     setCurrentPage('chat');
   };

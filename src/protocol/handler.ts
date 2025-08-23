@@ -78,11 +78,12 @@ export class Handler {
       case MType.Config:
         { 
           console.log('config message',message)
-          const config = message.payload;
-        if (config) {
-          this.emitter.emit("config", config);
+          const config = parsePayload<ConfigPayload>(message);
+          if (config) {
+            this.emitter.emit("config", config);
+          }
+          break; 
         }
-        break; }
       
       case MType.Err:
         { const error = parsePayload<ErrPayload>(message);
@@ -142,5 +143,16 @@ export class Handler {
       type: 2, // CmdType.AudioASR
       content: audioData
     });
+  }
+
+  // 创建ping消息
+  createPingMessage(): ArrayBuffer | null {
+    if (!this.meta) {
+      console.error("Meta not set, cannot encode ping message");
+      return null;
+    }
+
+    const message = createMessage(MType.Ping, null);
+    return encodeMessage(message, this.meta);
   }
 }
