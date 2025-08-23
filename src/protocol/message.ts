@@ -7,6 +7,14 @@ function base64ToUtf8(base64: string): string {
   }
   return new TextDecoder("utf-8").decode(bytes);
 }
+
+// UTF-8 安全的 Base64 编码函数
+function utf8ToBase64(str: string): string {
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(str);
+  const binary = Array.from(bytes, byte => String.fromCharCode(byte)).join('');
+  return btoa(binary);
+}
 import pako from 'pako';
 import { formatTime } from '../utils/time';
 
@@ -91,14 +99,14 @@ export type CmdType = typeof CmdType[keyof typeof CmdType];
 // 命令结构
 export interface CmdPayload {
   id: number;
-  type: CmdType;
+  command: CmdType;
   content: string | Uint8Array; // Text为string，Audio相关为二进制
 }
 
 // 响应类型枚举
 export const RespType = {
-  UserText: 1,    // 用户语音识别结果
-  ModelText: 2,   // 模型文字输出
+  ModelText: 1,   // 模型文字输出
+  UserText: 2,    // 用户语音识别结果
   ModelAudio: 3,  // 模型音频输出
 } as const;
 
@@ -108,7 +116,15 @@ export type RespType = typeof RespType[keyof typeof RespType];
 export interface RespPayload {
   id: number;
   type: RespType;
-  content: string | Uint8Array; // Text为string，Audio为二进制
+  content: RespContent; // Text为string，Audio为二进制
+}
+
+export interface RespContent {
+  content: string | Uint8Array;
+  finish: "stop" | "null";
+  id: number;
+  session_id: string;
+  timestamp: number;
 }
 
 // 消息编码函数
@@ -118,7 +134,9 @@ export function encodeMessage(msg: Message, meta: Meta): ArrayBuffer {
   
   if (meta.compression === 1) {
     // 实现GZIP压缩
-    console.log('message before compressing: \n',jsonStr)
+    if(msg.type !== MType.Ping){
+    console.log('send message: \n',jsonStr)
+    }
     const compressedData = pako.gzip(jsonStr);
     return compressedData.buffer;
   }
@@ -142,7 +160,7 @@ export function decodeMessage(buffer: ArrayBuffer, meta: Meta): Message | null {
       const jsonPayload = base64ToUtf8(obj.payload);
       const payload = JSON.parse(jsonPayload);
 
-      console.log('message: \n',{
+      console.log('receive message: \n',{
         type: obj.type,
         payload: payload,
         timestamp: obj.timestamp,
@@ -176,9 +194,8 @@ export function createMessage(type: MType, payload: unknown, timestamp?: number)
   if(type === MType.Ping){
     payload= {data: null}
   }
-  // 将payload序列化为JSON字符串，然后进行Base64编码
   const jsonPayload = JSON.stringify(payload);
-  const base64Payload = btoa(jsonPayload);
+  const base64Payload = utf8ToBase64(jsonPayload);
   
   return {
     type,

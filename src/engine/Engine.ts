@@ -66,8 +66,6 @@ export class Engine {
     };
 
     this.ws.onmessage = (ev) => {
-      console.log('onmessage',typeof ev.data)
-      console.log('onmessage',ev.data)
       if (typeof ev.data === "string") {
         // 处理文本消息（主要是meta消息）
         this.handler.handleTextMessage(ev.data);

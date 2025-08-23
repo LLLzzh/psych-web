@@ -17,12 +17,18 @@ function ChatPage({ url, userId, token, info, onLogout, onConfigChange }: ChatPa
   const [inputText, setInputText] = useState("");
 
   const { sendText, isConnected, isAuthenticated } = useChat(url, userId, token, info);
-  const { messages, error, clearMessages, clearError } = useChatStore();
+  const { messages, error, clearMessages, clearError, addMessage } = useChatStore();
   const { config } = useConfigStore();
 
   const handleSendText = async () => {
     if (inputText.trim()) {
       await sendText(inputText.trim());
+      addMessage({
+        id: Date.now().toString(),
+        type: "user",
+        content: inputText.trim(),
+        timestamp: Date.now(),
+      });
       setInputText("");
     }
   };
@@ -103,7 +109,7 @@ function ChatPage({ url, userId, token, info, onLogout, onConfigChange }: ChatPa
             messages.map((message) => (
               <div key={message.id} className={`message ${message.type}`}>
                 <div className="message-content">
-                  <div className="message-text">{message.content}</div>
+                  <div className="message-text text-black">{message.content}</div>
                   {message.audioUrl && (
                     <audio controls src={message.audioUrl} className="message-audio" />
                   )}
@@ -119,6 +125,7 @@ function ChatPage({ url, userId, token, info, onLogout, onConfigChange }: ChatPa
         <div className="input-section">
           <div className="input-container">
             <textarea
+              className="text-black"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyPress={handleKeyPress}

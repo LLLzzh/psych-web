@@ -44,10 +44,8 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
         info: info
       };
       const authMessage = engine.handler.createAuthMessage(authPayload);
-      console.log('authMessage',authMessage)
       if (authMessage) {
         engine.sendBinary(authMessage);
-        console.log(decodeMessage(authMessage,engine.handler.getMeta() as Meta))
       }
     });
 
@@ -60,7 +58,6 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
 
     // 收到响应消息
     engine.emitter.on("response", (response) => {
-      console.log("收到响应:", response);
       handleResponse(response);
     });
 

@@ -83,7 +83,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 // 处理响应的辅助函数
 export function handleResponse(response: RespPayload): void {
   const { addMessage, updateLastMessage, addAudioToLastMessage } = useChatStore.getState();
-  
+  console.log('handleResponse',response)
   switch (response.type) {
     case RespType.UserText:
       // 用户语音识别结果
@@ -99,20 +99,20 @@ export function handleResponse(response: RespPayload): void {
       
     case RespType.ModelText:
       // 模型文字输出
-      if (typeof response.content === "string") {
+      if (typeof response.content.content === "string") {
         // 检查是否已有助手的消息
         const messages = useChatStore.getState().messages;
         const lastMessage = messages[messages.length - 1];
         
         if (lastMessage && lastMessage.type === "assistant") {
           // 追加到现有消息
-          updateLastMessage(response.content);
+          updateLastMessage(response.content.content);
         } else {
           // 创建新消息
           addMessage({
             id: `assistant-${Date.now()}`,
             type: "assistant",
-            content: response.content,
+            content: response.content.content,
             timestamp: Date.now(),
           });
         }

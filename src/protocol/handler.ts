@@ -51,7 +51,6 @@ export class Handler {
       console.error("Failed to decode message");
       return;
     }
-    console.log('handleBinaryMessage',message)
 
     this.handleMessage(message);
   }
@@ -61,7 +60,6 @@ export class Handler {
     try {
       const meta = JSON.parse(text) as Meta;
       this.setMeta(meta);
-      console.log('meta set:',meta)
       this.emitter.emit("connected");
     } catch (error) {
       console.error("Failed to parse meta message:", error);
@@ -77,7 +75,6 @@ export class Handler {
       
       case MType.Config:
         { 
-          console.log('config message',message)
           const config = parsePayload<ConfigPayload>(message);
           if (config) {
             this.emitter.emit("config", config);
@@ -94,6 +91,7 @@ export class Handler {
       
       case MType.Resp:
         { const response = parsePayload<RespPayload>(message);
+          console.log('response',response)
         if (response) {
           this.emitter.emit("response", response);
         }
@@ -112,7 +110,6 @@ export class Handler {
     }
 
     const message = createMessage(MType.Auth, authPayload);
-    console.log('createAuthMessage',message)
     return encodeMessage(message, this.meta);
   }
 
@@ -131,7 +128,7 @@ export class Handler {
   createTextCmd(id: number, text: string): ArrayBuffer | null {
     return this.createCmdMessage({
       id,
-      type: 1, // CmdType.Text
+      command: 1, // CmdType.Text
       content: text
     });
   }
@@ -140,7 +137,7 @@ export class Handler {
   createAudioASRCmd(id: number, audioData: Uint8Array): ArrayBuffer | null {
     return this.createCmdMessage({
       id,
-      type: 2, // CmdType.AudioASR
+      command: 2, // CmdType.AudioASR
       content: audioData
     });
   }
