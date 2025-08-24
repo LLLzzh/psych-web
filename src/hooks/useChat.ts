@@ -1,13 +1,17 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { Engine } from "../engine/Engine";
 import { useConfigStore } from "../store/configStore";
 import { useChatStore, handleResponse } from "../store/chatStore";
 import { type AuthPayload, AuthType } from "../protocol/auth";
 import type { UserInfo } from "../apis/login";
+import { ASRService } from "../services/ASRService";
 //import { decodeMessage, type Meta } from "../protocol/message";
 
 export function useChat(url: string, userId: string, token: string, info: UserInfo) {
   const engineRef = useRef<Engine | null>(null);
+  const asrServiceRef = useRef<ASRService | null>(null);
+  
+  // 使用useCallback优化函数依赖
   const setConfig = useConfigStore((state) => state.setConfig);
   const {
     setConnected,
@@ -15,9 +19,14 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
     setError,
     clearError,
     nextCmdId,
+    addMessage,
+    setASRResultHandler,
     isConnected,
     isAuthenticated,
   } = useChatStore();
+
+  // 使用useMemo优化info对象依赖
+  const memoizedInfo = useMemo(() => info, [info.userId, info.strong, info.unitId, info.studentId]);
 
   useEffect(() => {
     const engine = new Engine(url);
@@ -41,7 +50,7 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
         authId: userId,
         authType: AuthType.AlreadyAuth,
         verifyCode: token,
-        info: info
+        info: memoizedInfo
       };
       const authMessage = engine.handler.createAuthMessage(authPayload);
       if (authMessage) {
@@ -54,6 +63,32 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
       console.log("收到配置:", config);
       setConfig(config);
       setAuthenticated(true);
+      
+      // 初始化ASR服务
+      if (config.asrConfig && !asrServiceRef.current) {
+        asrServiceRef.current = new ASRService();
+        asrServiceRef.current.initialize(
+          config.asrConfig,
+          (text: string) => {
+            // ASR识别结果回调，添加到消息列表
+            console.log("ASR识别结果:", text);
+            addMessage({
+              id: `user-${Date.now()}`,
+              type: "user",
+              content: text,
+              timestamp: Date.now(),
+            });
+          },
+          sendAudioASR
+        );
+        
+        // 设置ASR结果处理函数
+        setASRResultHandler((text: string) => {
+          if (asrServiceRef.current) {
+            asrServiceRef.current.handleASRResult(text);
+          }
+        });
+      }
     });
 
     // 收到响应消息
@@ -88,7 +123,7 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
       setConnected(false);
       setAuthenticated(false);
     };
-  }, [url, userId, token, info, setConfig, setConnected, setAuthenticated, setError, clearError ]);
+  }, [url, userId, token, memoizedInfo]);
 
   // 发送文本消息
   const sendText = async (text: string) => {
@@ -98,29 +133,48 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
     }
 
     const cmdId = nextCmdId();
-    const cmdMessage = engineRef.current.handler.createTextCmd(cmdId, text);
-    if (cmdMessage) {
-      await engineRef.current.sendBinary(cmdMessage);
-    }
+    await engineRef.current.sendTextMessage(cmdId, text);
   };
 
   // 发送音频ASR消息
   const sendAudioASR = async (audioData: Uint8Array) => {
-    if (!engineRef.current || !isConnected || !isAuthenticated) {
-      console.warn("连接未就绪，无法发送消息");
-      return;
+    if (engineRef.current) {
+      const cmdId = nextCmdId();
+      await engineRef.current.sendAudioASRMessage(cmdId, audioData);
     }
+  };
 
-    const cmdId = nextCmdId();
-    const cmdMessage = engineRef.current.handler.createAudioASRCmd(cmdId, audioData);
-    if (cmdMessage) {
-      await engineRef.current.sendBinary(cmdMessage);
+  // ASR相关方法
+  const startASR = async () => {
+    if (asrServiceRef.current) {
+      return await asrServiceRef.current.startRecording();
+    }
+    return false;
+  };
+
+  const stopASR = () => {
+    if (asrServiceRef.current) {
+      asrServiceRef.current.stopRecording();
+    }
+  };
+
+  const getASRState = () => {
+    return asrServiceRef.current?.getRecordingState() || false;
+  };
+
+  const handleASRResult = (text: string) => {
+    if (asrServiceRef.current) {
+      asrServiceRef.current.handleASRResult(text);
     }
   };
 
   return { 
     sendText, 
     sendAudioASR,
+    startASR,
+    stopASR,
+    getASRState,
+    handleASRResult,
     isConnected,
     isAuthenticated,
   };

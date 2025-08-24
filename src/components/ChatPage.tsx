@@ -10,13 +10,19 @@ interface ChatPageProps {
   token: string; 
   info: UserInfo;
   onLogout: () => void;
-  onConfigChange: (newUrl: string) => void;
 }
 
-function ChatPage({ url, userId, token, info, onLogout, onConfigChange }: ChatPageProps) {
+function ChatPage({ url, userId, token, info, onLogout }: ChatPageProps) {
   const [inputText, setInputText] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
 
-  const { sendText, isConnected, isAuthenticated } = useChat(url, userId, token, info);
+  const { 
+    sendText, 
+    startASR, 
+    stopASR, 
+    isConnected, 
+    isAuthenticated 
+  } = useChat(url, userId, token, info);
   const { messages, error, clearMessages, clearError, addMessage } = useChatStore();
   const { config } = useConfigStore();
 
@@ -37,6 +43,18 @@ function ChatPage({ url, userId, token, info, onLogout, onConfigChange }: ChatPa
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendText();
+    }
+  };
+
+  const handleVoiceButton = async () => {
+    if (isRecording) {
+      stopASR();
+      setIsRecording(false);
+    } else {
+      const success = await startASR();
+      if (success) {
+        setIsRecording(true);
+      }
     }
   };
 
@@ -71,7 +89,7 @@ function ChatPage({ url, userId, token, info, onLogout, onConfigChange }: ChatPa
         </button>
       </header>
 
-      <div className="mb-5 p-4 bg-gray-50 rounded-lg">
+      {/* <div className="mb-5 p-4 bg-gray-50 rounded-lg">
         <h3 className="m-0 mb-2.5 text-base text-gray-800">连接配置</h3>
         <div className="flex gap-2.5 flex-wrap">
           <input
@@ -97,7 +115,7 @@ function ChatPage({ url, userId, token, info, onLogout, onConfigChange }: ChatPa
             className="flex-1 min-w-[200px] px-3 py-2 border border-gray-300 rounded text-sm disabled:bg-gray-100 disabled:text-gray-500"
           />
         </div>
-      </div>
+      </div> */}
 
       {config && (
         <div className="mb-5 p-4 bg-gray-50 rounded-lg">
@@ -131,12 +149,12 @@ function ChatPage({ url, userId, token, info, onLogout, onConfigChange }: ChatPa
               <div key={message.id} className={`mb-4 flex flex-col ${
                 message.type === 'user' ? 'items-end' : 'items-start'
               }`}>
-                <div className={`max-w-[70%] px-4 py-3 rounded-xl break-words ${
+                <div className={`max-w-[70%] px-4 py-3 rounded-2xl break-words ${
                   message.type === 'user' 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-white text-gray-800 border border-gray-200'
+                    ? 'bg-[#EDEEFF]  shadow-md' 
+                    : 'bg-white  border border-gray-200'
                 }`}>
-                  <div className="mb-2 leading-relaxed text-black">{message.content}</div>
+                  <div className="mb-2 text-[#3b3b53] leading-relaxed">{message.content}</div>
                   {message.audioUrl && (
                     <audio controls src={message.audioUrl} className="w-full h-10" />
                   )}
@@ -153,15 +171,37 @@ function ChatPage({ url, userId, token, info, onLogout, onConfigChange }: ChatPa
 
         <div className="p-5 bg-white border-t border-gray-200">
           <div className="flex flex-col gap-2.5">
-            <textarea
-              className="w-full px-3 py-3 border border-gray-300 rounded text-sm font-inherit resize-y min-h-[60px] disabled:bg-gray-100 disabled:text-gray-500"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="输入消息..."
-              disabled={!isConnected || !isAuthenticated}
-              rows={3}
-            />
+            <div className="flex gap-2.5">
+              <textarea
+                className="flex-1 px-3 py-3 border border-gray-300 rounded text-sm font-inherit resize-y min-h-[60px] disabled:bg-gray-100 disabled:text-gray-500"
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="输入消息..."
+                disabled={!isConnected || !isAuthenticated}
+                rows={3}
+              />
+              <button
+                onClick={handleVoiceButton}
+                disabled={!isConnected || !isAuthenticated}
+                className={`px-4 py-2 rounded text-sm cursor-pointer transition-colors duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed ${
+                  isRecording 
+                    ? 'bg-red-600 text-white hover:bg-red-700' 
+                    : 'bg-green-600 text-white hover:bg-green-700'
+                }`}
+                title={isRecording ? "停止录音" : "开始录音"}
+              >
+                {isRecording ? (
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </button>
+            </div>
             <div className="flex gap-2.5 justify-end">
               <button
                 onClick={handleSendText}

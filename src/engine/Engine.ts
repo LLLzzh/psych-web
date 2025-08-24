@@ -139,6 +139,22 @@ export class Engine {
     }
   }
 
+  // 发送文本消息
+  async sendTextMessage(id: number, text: string): Promise<void> {
+    const buffer = this.handler.createTextCmd(id, text);
+    if (buffer) {
+      await this.sendBinary(buffer);
+    }
+  }
+
+  // 发送音频ASR消息
+  async sendAudioASRMessage(id: number, audioData: Uint8Array): Promise<void> {
+    const buffer = this.handler.createAudioASRCmd(id, audioData);
+    if (buffer) {
+      await this.sendBinary(buffer);
+    }
+  }
+
   private startHeartbeat() {
     this.stopHeartbeat();
     this.heartbeatTimer = window.setInterval(() => {

@@ -8,7 +8,7 @@ type Page = 'login' | 'chat';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('login');
-  const [url, setUrl] = useState("wss://api.xhpolaris.com/psych/chat");
+  const [url] = useState("wss://api.xhpolaris.com/psych/chat");
   const [userId, setUserId] = useState("");
   const [token, setToken] = useState("");
   const [info, setInfo] = useState<UserInfo>({
@@ -72,7 +72,6 @@ function App() {
       token={token}
       info={info}
       onLogout={handleLogout}
-      onConfigChange={(newUrl: string) => setUrl(newUrl)}
     />
   );
 }

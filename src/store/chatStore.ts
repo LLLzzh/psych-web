@@ -15,6 +15,7 @@ interface ChatState {
   isConnected: boolean;
   isAuthenticated: boolean;
   error: string | null;
+  asrResultHandler: ((text: string) => void) | null;
   
   // Actions
   addMessage: (message: ChatMessage) => void;
@@ -24,6 +25,7 @@ interface ChatState {
   setConnected: (connected: boolean) => void;
   setAuthenticated: (authenticated: boolean) => void;
   setError: (error: string | null) => void;
+  setASRResultHandler: (handler: (text: string) => void) => void;
   clearMessages: () => void;
   clearError: () => void;
 }
@@ -35,6 +37,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isConnected: false,
   isAuthenticated: false,
   error: null,
+  asrResultHandler: null,
   
   addMessage: (message) => {
     set((state) => ({
@@ -77,25 +80,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setConnected: (connected) => set({ isConnected: connected }),
   setAuthenticated: (authenticated) => set({ isAuthenticated: authenticated }),
   setError: (error) => set({ error }),
+  setASRResultHandler: (handler) => set({ asrResultHandler: handler }),
   clearMessages: () => set({ messages: [] }),
   clearError: () => set({ error: null }),
 }));
 
 // 处理响应的辅助函数
 export function handleResponse(response: RespPayload): void {
-  const { addMessage, updateLastMessage, addAudioToLastMessage } = useChatStore.getState();
+  const { addMessage, updateLastMessage, addAudioToLastMessage, asrResultHandler } = useChatStore.getState();
   console.log('handleResponse',response)
 
   switch (response.type) {
     case RespType.UserText:
       // 用户语音识别结果
-      if (typeof response.content === "string") {
-        addMessage({
-          id: `user-${Date.now()}`,
-          type: "user",
-          content: response.content,
-          timestamp: Date.now(),
-        });
+      if (typeof response.content.content === "string") {
+        // 调用ASR结果处理函数
+        if (asrResultHandler) {
+          asrResultHandler(response.content.content);
+        } else {
+          // 如果没有设置ASR处理函数，直接添加到消息
+          addMessage({
+            id: `user-${Date.now()}`,
+            type: "user",
+            content: response.content.content,
+            timestamp: Date.now(),
+          });
+        }
       }
       break;
       

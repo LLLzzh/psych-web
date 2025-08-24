@@ -131,6 +131,7 @@ export interface RespContent {
 export function encodeMessage(msg: Message, meta: Meta): ArrayBuffer {
   // 1. 序列化Message对象
   const jsonStr = JSON.stringify(msg);
+  console.log('send message: \n',jsonStr)
   
   if (meta.compression === 1) {
     // 实现GZIP压缩
