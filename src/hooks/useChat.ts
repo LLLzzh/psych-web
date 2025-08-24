@@ -4,7 +4,7 @@ import { useConfigStore } from "../store/configStore";
 import { useChatStore, handleResponse } from "../store/chatStore";
 import { type AuthPayload, AuthType } from "../protocol/auth";
 import type { UserInfo } from "../apis/login";
-import { decodeMessage, type Meta } from "../protocol/message";
+//import { decodeMessage, type Meta } from "../protocol/message";
 
 export function useChat(url: string, userId: string, token: string, info: UserInfo) {
   const engineRef = useRef<Engine | null>(null);

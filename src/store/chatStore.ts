@@ -30,6 +30,7 @@ interface ChatState {
 
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
+  currentMessageId: 0,
   currentCmdId: 0,
   isConnected: false,
   isAuthenticated: false,
@@ -84,6 +85,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 export function handleResponse(response: RespPayload): void {
   const { addMessage, updateLastMessage, addAudioToLastMessage } = useChatStore.getState();
   console.log('handleResponse',response)
+
   switch (response.type) {
     case RespType.UserText:
       // 用户语音识别结果

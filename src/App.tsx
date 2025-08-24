@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import Login from "./components/Login";
 import ChatPage from "./components/ChatPage";
-import "./App.css";
 import { getUserInfo, type UserInfo } from "./apis/login";
 
 // 定义页面类型
@@ -54,6 +53,7 @@ function App() {
     localStorage.removeItem('chat_userId');
     localStorage.removeItem('chat_token');
     localStorage.removeItem('chat_info');
+
     
     setUserId("");
     setToken("");
