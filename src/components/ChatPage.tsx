@@ -48,7 +48,7 @@ function ChatPage({ url, userId, token, info, onLogout }: ChatPageProps) {
 
   const handleVoiceButton = async () => {
     if (isRecording) {
-      stopASR();
+      await stopASR();
       setIsRecording(false);
     } else {
       const success = await startASR();

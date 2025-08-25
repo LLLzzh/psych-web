@@ -90,8 +90,8 @@ export interface ConfigPayload {
 // 命令类型枚举
 export const CmdType = {
   Text: 1,
-  AudioASR: 2,
-  Audio: 3,
+  Audio: 2,
+  AudioASR: 3,
 } as const;
 
 export type CmdType = typeof CmdType[keyof typeof CmdType];
@@ -131,7 +131,6 @@ export interface RespContent {
 export function encodeMessage(msg: Message, meta: Meta): ArrayBuffer {
   // 1. 序列化Message对象
   const jsonStr = JSON.stringify(msg);
-  console.log('send message: \n',jsonStr)
   
   if (meta.compression === 1) {
     // 实现GZIP压缩

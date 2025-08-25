@@ -54,6 +54,24 @@ export class ASRService {
     }
   }
 
+  // 发送ASR开始标识
+  private async sendASRStartSignal(): Promise<void> {
+    if (this.sendAudioASR) {
+      const startSignal = new Uint8Array([0]); // FirstASR byte = 0 标识开始
+      await this.sendAudioASR(startSignal);
+      console.log("已发送ASR开始标识");
+    }
+  }
+
+  // 发送ASR结束标识
+  private async sendASREndSignal(): Promise<void> {
+    if (this.sendAudioASR) {
+      const endSignal = new Uint8Array([255]); // LastASR byte = 255 标识结束
+      await this.sendAudioASR(endSignal);
+      console.log("已发送ASR结束标识");
+    }
+  }
+
   // 开始录音
   async startRecording(): Promise<boolean> {
     if (!this.config) {
@@ -98,6 +116,10 @@ export class ASRService {
 
       this.mediaRecorder.start();
       console.log("开始录音");
+      
+      // 发送ASR开始标识
+      await this.sendASRStartSignal();
+      
       return true;
 
     } catch (error) {
@@ -108,11 +130,14 @@ export class ASRService {
   }
 
   // 停止录音
-  stopRecording(): void {
+  async stopRecording(): Promise<void> {
     if (this.mediaRecorder && this.isRecording) {
       this.mediaRecorder.stop();
       this.isRecording = false;
       console.log("停止录音");
+      
+      // 发送ASR结束标识
+      await this.sendASREndSignal();
     }
   }
 

@@ -67,8 +67,8 @@ interface Message {
 
 ### 命令类型
 - `CmdType.Text = 1`: 文本输入
-- `CmdType.AudioASR = 2`: 音频识别
-- `CmdType.Audio = 3`: 纯音频（预留）
+- `CmdType.AudioASR = 3`: 音频识别
+- `CmdType.Audio = 2`: 纯音频（预留）
 
 ### 响应类型
 - `RespType.UserText = 1`: 用户语音识别结果

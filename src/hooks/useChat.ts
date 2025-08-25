@@ -152,9 +152,9 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
     return false;
   };
 
-  const stopASR = () => {
+  const stopASR = async () => {
     if (asrServiceRef.current) {
-      asrServiceRef.current.stopRecording();
+      await asrServiceRef.current.stopRecording();
     }
   };
 

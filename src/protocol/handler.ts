@@ -137,7 +137,7 @@ export class Handler {
   createAudioASRCmd(id: number, audioData: Uint8Array): ArrayBuffer | null {
     return this.createCmdMessage({
       id,
-      command: 2, // CmdType.AudioASR
+      command: 3, // CmdType.AudioASR
       content: audioData
     });
   }
