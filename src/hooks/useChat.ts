@@ -11,7 +11,6 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
   const engineRef = useRef<Engine | null>(null);
   const asrServiceRef = useRef<ASRService | null>(null);
   
-  // 使用useCallback优化函数依赖
   const setConfig = useConfigStore((state) => state.setConfig);
   const {
     setConnected,

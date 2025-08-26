@@ -3,6 +3,7 @@ import { useChat } from "../hooks/useChat";
 import { useChatStore } from "../store/chatStore";
 import { useConfigStore } from "../store/configStore";
 import type { UserInfo } from "../apis/login";
+import logo from "../assets/logo.png";
 
 interface ChatPageProps {
   url: string;
@@ -59,35 +60,8 @@ function ChatPage({ url, userId, token, info, onLogout }: ChatPageProps) {
   };
 
   return (
-    <div className="w-screen mx-auto p-5 font-sans">
-      <header className="flex justify-between items-center mb-5 pb-5 border-b border-gray-200">
-        <h1 className="m-0 text-gray-800 text-2xl font-semibold">WebSocket Chat Demo</h1>
-        <div className="flex gap-2.5">
-          <span className={`px-3 py-1 rounded-2xl text-xs font-medium ${
-            isConnected 
-              ? 'bg-green-100 text-green-800' 
-              : 'bg-red-100 text-red-800'
-          }`}>
-            {isConnected ? '已连接' : '未连接'}
-          </span>
-          <span className={`px-3 py-1 rounded-2xl text-xs font-medium ${
-            isAuthenticated 
-              ? 'bg-blue-100 text-blue-800' 
-              : 'bg-yellow-100 text-yellow-800'
-          }`}>
-            {isAuthenticated ? '已认证' : '未认证'}
-          </span>
-        </div>
-        <button 
-          onClick={() => {
-            clearMessages();
-            onLogout();
-          }}
-          className="px-4 py-2 bg-red-600 text-white border-none rounded text-sm cursor-pointer transition-colors duration-200 hover:bg-red-700"
-        >
-          登出
-        </button>
-      </header>
+    <div className="w-screen mx-auto h-full font-sans">
+
 
       {/* <div className="mb-5 p-4 bg-gray-50 rounded-lg">
         <h3 className="m-0 mb-2.5 text-base text-gray-800">连接配置</h3>
@@ -117,8 +91,40 @@ function ChatPage({ url, userId, token, info, onLogout }: ChatPageProps) {
         </div>
       </div> */}
 
+      <div className ="flex items-center justify-center w-full h-full">
+        
       {config && (
-        <div className="mb-5 p-4 bg-gray-50 rounded-lg">
+        
+        <div className="w-90 p-4 h-full bg-white/35 shadow-[8px_0px_20px_rgba(233,241,252,0.6)] backdrop-blur-sm rounded-r-[20px]">
+        <header className="flex justify-between items-center mb-5 pb-5 border-b border-gray-200">
+         <img src={logo} alt="花狮心理logo" className="w-10 h-10 object-contain" />
+        <h1 className="m-0 text-gray-800 text-2xl font-semibold">花狮心理</h1>
+        <div className="flex gap-2.5">
+          <span className={`px-3 py-1 rounded-2xl text-xs font-medium ${
+            isConnected 
+              ? 'bg-green-100 text-green-800' 
+              : 'bg-red-100 text-red-800'
+          }`}>
+            {isConnected ? '已连接' : '未连接'}
+          </span>
+          <span className={`px-3 py-1 rounded-2xl text-xs font-medium ${
+            isAuthenticated 
+              ? 'bg-blue-100 text-blue-800' 
+              : 'bg-yellow-100 text-yellow-800'
+          }`}>
+            {isAuthenticated ? '已认证' : '未认证'}
+          </span>
+        </div>
+        <button 
+          onClick={() => {
+            clearMessages();
+            onLogout();
+          }}
+          className="px-4 py-2 bg-red-600 text-white border-none rounded text-sm cursor-pointer transition-colors duration-200 hover:bg-red-700"
+        >
+          登出
+        </button>
+      </header>
           <h3 className="m-0 mb-2.5 text-base text-gray-800">配置信息</h3>
           <pre className="m-0 text-xs text-gray-600 whitespace-pre-wrap break-all">{
           JSON.stringify(config, null, 2)
@@ -138,7 +144,7 @@ function ChatPage({ url, userId, token, info, onLogout }: ChatPageProps) {
         </div>
       )}
 
-      <div className="flex flex-col h-[600px] border border-gray-200 rounded-lg overflow-hidden">
+      <div className="flex flex-col flex-1 h-full border border-gray-200 rounded-lg overflow-hidden">
         <div className="flex-1 overflow-y-auto p-5 bg-gray-50">
           {messages.length === 0 ? (
             <div className="flex justify-center items-center h-full text-gray-500 italic">
@@ -220,6 +226,9 @@ function ChatPage({ url, userId, token, info, onLogout }: ChatPageProps) {
           </div>
         </div>
       </div>
+      </div>
+
+     
     </div>
   );
 }
