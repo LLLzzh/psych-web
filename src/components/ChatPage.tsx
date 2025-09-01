@@ -93,7 +93,7 @@ function ChatPage({ url, userId, token, info, onLogout }: ChatPageProps) {
 
       <div className ="flex items-center justify-center w-full h-full">
         
-      {config && (
+    
         
         <div className="w-90 p-4 h-full bg-white/35 shadow-[8px_0px_20px_rgba(233,241,252,0.6)] backdrop-blur-sm rounded-r-[20px]">
         <header className="flex justify-between items-center mb-5 pb-5 border-b border-gray-200">
@@ -125,12 +125,14 @@ function ChatPage({ url, userId, token, info, onLogout }: ChatPageProps) {
           登出
         </button>
       </header>
+      
           <h3 className="m-0 mb-2.5 text-base text-gray-800">配置信息</h3>
           <pre className="m-0 text-xs text-gray-600 whitespace-pre-wrap break-all">{
-          JSON.stringify(config, null, 2)
+            config && (
+          JSON.stringify(config, null, 2))
           }</pre>
         </div>
-      )}
+        
 
       {error && (
         <div className="flex justify-between items-center mb-5 px-4 py-3 bg-red-100 text-red-800 border border-red-300 rounded">

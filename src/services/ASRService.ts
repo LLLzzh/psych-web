@@ -105,6 +105,8 @@ export class ASRService {
       this.mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           this.audioChunks.push(event.data);
+          // 每个200ms的数据块直接发送，不需要再收集到currentChunk
+          this.sendAudioChunkDirectly(event.data);
         }
       };
 
@@ -114,8 +116,9 @@ export class ASRService {
         stream.getTracks().forEach(track => track.stop());
       };
 
-      this.mediaRecorder.start();
-      console.log("开始录音");
+      // 启动MediaRecorder，每200ms触发一次ondataavailable事件
+      this.mediaRecorder.start(200);
+      console.log("开始录音，每200ms分包");
       
       // 发送ASR开始标识
       await this.sendASRStartSignal();
@@ -135,9 +138,26 @@ export class ASRService {
       this.mediaRecorder.stop();
       this.isRecording = false;
       console.log("停止录音");
+      // 注意：ASR结束标识将在processAudio中发送，确保在音频数据发送后再发送
+    }
+  }
+
+  // 直接发送音频块（由MediaRecorder的timeslice触发）
+  private async sendAudioChunkDirectly(audioBlob: Blob): Promise<void> {
+    if (!this.sendAudioASR) {
+      return;
+    }
+
+    try {
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+
+      console.log("发送音频块，大小:", uint8Array.length, "bytes");
       
-      // 发送ASR结束标识
-      await this.sendASREndSignal();
+      // 发送音频块到服务器
+      await this.sendAudioASR(uint8Array);
+    } catch (error) {
+      console.error("发送音频块失败:", error);
     }
   }
 
@@ -161,28 +181,12 @@ export class ASRService {
 
   // 处理录音数据
   private async processAudio(): Promise<void> {
-    if (this.audioChunks.length === 0) {
-      console.warn("没有录音数据");
-      return;
-    }
-
-    try {
-      const audioBlob = new Blob(this.audioChunks, { type: this.getMimeType() });
-      const arrayBuffer = await audioBlob.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
-
-      console.log("录音数据大小:", uint8Array.length, "bytes");
-      
-      // 发送音频数据到服务器进行ASR处理
-      if (this.sendAudioASR) {
-        await this.sendAudioASR(uint8Array);
-        console.log("音频数据已发送到服务器进行ASR处理");
-      } else {
-        console.error("sendAudioASR函数未设置");
-      }
-
-    } catch (error) {
-      console.error("处理录音数据失败:", error);
+    // 发送ASR结束标识
+    if (this.sendAudioASR) {
+      await this.sendASREndSignal();
+      console.log("ASR录音结束，已发送结束标识");
+    } else {
+      console.error("sendAudioASR函数未设置");
     }
   }
 
@@ -196,6 +200,7 @@ export class ASRService {
     if (this.mediaRecorder && this.isRecording) {
       this.mediaRecorder.stop();
     }
+    
     this.mediaRecorder = null;
     this.audioChunks = [];
     this.isRecording = false;

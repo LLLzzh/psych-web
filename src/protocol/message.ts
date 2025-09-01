@@ -100,7 +100,7 @@ export type CmdType = typeof CmdType[keyof typeof CmdType];
 export interface CmdPayload {
   id: number;
   command: CmdType;
-  content: string | Uint8Array; // Text为string，Audio相关为二进制
+  content: string; // Text为string，Audio为base64编码的字符串
 }
 
 // 响应类型枚举
@@ -191,6 +191,12 @@ export function decodeMessage(buffer: ArrayBuffer, meta: Meta): Message | null {
 // 创建消息的辅助函数
 export function createMessage(type: MType, payload: unknown, timestamp?: number): Message {
 
+  console.log('create message: \n',{
+    type,
+    payload,
+    timestamp: formatTime(timestamp || Date.now()),
+  })
+
   if(type === MType.Ping){
     payload= {data: null}
   }
@@ -234,4 +240,10 @@ export function base64ToArrayBuffer(base64: string): ArrayBuffer {
     bytes[i] = binaryString.charCodeAt(i);
   }
   return bytes.buffer;
+}
+
+// 将Uint8Array转换为base64字符串的工具函数
+export function uint8ArrayToBase64(uint8Array: Uint8Array): string {
+  const binaryString = Array.from(uint8Array, byte => String.fromCharCode(byte)).join('');
+  return btoa(binaryString);
 }

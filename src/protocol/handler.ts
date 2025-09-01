@@ -10,7 +10,8 @@ import {
   type ConfigPayload,
   type ErrPayload,
   type CmdPayload,
-  type RespPayload
+  type RespPayload,
+  uint8ArrayToBase64
 } from "./message";
 import { type AuthPayload } from "./auth";
 
@@ -138,7 +139,7 @@ export class Handler {
     return this.createCmdMessage({
       id,
       command: 3, // CmdType.AudioASR
-      content: audioData
+      content: uint8ArrayToBase64(audioData)
     });
   }
 
