@@ -88,7 +88,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
 // 处理响应的辅助函数
 export function handleResponse(response: RespPayload): void {
   const { addMessage, updateLastMessage, addAudioToLastMessage, asrResultHandler } = useChatStore.getState();
-  console.log('handleResponse',response)
 
   switch (response.type) {
     case RespType.UserText:

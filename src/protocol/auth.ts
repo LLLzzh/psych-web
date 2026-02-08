@@ -26,7 +26,6 @@ export function buildAuthMessage(userId: string, token: string, info: UserInfo) 
   };
 
   const message = createMessage(MType.Auth, payload);
-  console.log('buildAuthMessage',message)
   // 注意：这里需要传入meta参数，但在这个阶段meta还没有，所以暂时使用默认值
   // 实际使用时应该在Handler层处理
   return message;

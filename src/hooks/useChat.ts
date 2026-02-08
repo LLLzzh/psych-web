@@ -33,14 +33,12 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
 
     // WebSocket连接建立
     engine.emitter.on("open", () => {
-      console.log("WebSocket 已连接");
       setConnected(true);
       clearError();
     });
 
     // 协议连接成功（收到meta）
     engine.emitter.on("connected", () => {
-      console.log("协议连接成功，开始心跳");
       engine.startHeartbeatAfterMeta();
       
       // 发送认证消息
@@ -59,7 +57,6 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
 
     // 收到配置消息
     engine.emitter.on("config", (config) => {
-      console.log("收到配置:", config);
       setConfig(config);
       setAuthenticated(true);
       
@@ -70,7 +67,6 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
           config.asrConfig,
           (text: string) => {
             // ASR识别结果回调，添加到消息列表
-            console.log("ASR识别结果:", text);
             addMessage({
               id: `user-${Date.now()}`,
               type: "user",
@@ -110,7 +106,6 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
 
     // 连接关闭
     engine.emitter.on("close", () => {
-      console.log("WebSocket连接关闭");
       setConnected(false);
       setAuthenticated(false);
     });

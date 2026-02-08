@@ -92,7 +92,6 @@ export class Handler {
       
       case MType.Resp:
         { const response = parsePayload<RespPayload>(message);
-          console.log('response',response)
         if (response) {
           this.emitter.emit("response", response);
         }

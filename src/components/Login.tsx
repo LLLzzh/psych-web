@@ -14,7 +14,7 @@ function Login({ onLoginSuccess }: LoginProps) {
     const [error, setError] = useState("");
     const [, setInfo] = useState<UserInfo | null>(null);
 
-    const unitId: string = "68a14236ef1dc2bc4149606c"
+    const unitId: string = "683beddbdcc71f894d67e3b3"
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -39,7 +39,6 @@ function Login({ onLoginSuccess }: LoginProps) {
                 verifyCode: verifyCode.trim()
             }
             const response = await login(loginParams) as LoginResponse;
-            console.log("登录成功:", response);
             
             // 登录成功后的处理
             if (response && response.data) {

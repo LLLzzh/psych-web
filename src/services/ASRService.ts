@@ -17,6 +17,13 @@ export class ASRService {
   private config: ASRConfig | null = null;
   private onResult: ((text: string) => void) | null = null;
   private sendAudioASR: ((audioData: Uint8Array) => Promise<void>) | null = null;
+  
+  // PCM录音相关
+  private audioContext: AudioContext | null = null;
+  private mediaStreamSource: MediaStreamAudioSourceNode | null = null;
+  private scriptProcessor: ScriptProcessorNode | null = null;
+  private chunkInterval: number | null = null;
+  private currentChunk: Uint8Array[] = [];
 
   constructor() {
     this.audioChunks = [];
@@ -32,7 +39,6 @@ export class ASRService {
     this.config = config;
     this.onResult = onResult;
     this.sendAudioASR = sendAudioASR;
-    console.log("ASR服务已初始化:", config);
   }
 
   // 处理服务器返回的ASR结果
@@ -59,7 +65,6 @@ export class ASRService {
     if (this.sendAudioASR) {
       const startSignal = new Uint8Array([0]); // FirstASR byte = 0 标识开始
       await this.sendAudioASR(startSignal);
-      console.log("已发送ASR开始标识");
     }
   }
 
@@ -68,7 +73,6 @@ export class ASRService {
     if (this.sendAudioASR) {
       const endSignal = new Uint8Array([255]); // LastASR byte = 255 标识结束
       await this.sendAudioASR(endSignal);
-      console.log("已发送ASR结束标识");
     }
   }
 
@@ -95,30 +99,15 @@ export class ASRService {
       });
 
       this.audioChunks = [];
+      this.currentChunk = [];
       this.isRecording = true;
 
-      // 创建MediaRecorder
-      this.mediaRecorder = new MediaRecorder(stream, {
-        mimeType: this.getMimeType(),
-      });
-
-      this.mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          this.audioChunks.push(event.data);
-          // 每个200ms的数据块直接发送，不需要再收集到currentChunk
-          this.sendAudioChunkDirectly(event.data);
-        }
-      };
-
-      this.mediaRecorder.onstop = () => {
-        this.processAudio();
-        // 停止所有音轨
-        stream.getTracks().forEach(track => track.stop());
-      };
-
-      // 启动MediaRecorder，每200ms触发一次ondataavailable事件
-      this.mediaRecorder.start(200);
-      console.log("开始录音，每200ms分包");
+      // 根据配置选择录音方式
+      if (this.config.format.toLowerCase() === 'pcm') {
+        await this.startPCMRecording(stream);
+      } else {
+        await this.startMediaRecorderRecording(stream);
+      }
       
       // 发送ASR开始标识
       await this.sendASRStartSignal();
@@ -134,11 +123,140 @@ export class ASRService {
 
   // 停止录音
   async stopRecording(): Promise<void> {
-    if (this.mediaRecorder && this.isRecording) {
-      this.mediaRecorder.stop();
+    if (this.isRecording) {
       this.isRecording = false;
-      console.log("停止录音");
+      
+      if (this.config?.format.toLowerCase() === 'pcm') {
+        this.stopPCMRecording();
+      } else if (this.mediaRecorder) {
+        this.mediaRecorder.stop();
+      }
+      
       // 注意：ASR结束标识将在processAudio中发送，确保在音频数据发送后再发送
+    }
+  }
+
+  // 启动PCM录音
+  private async startPCMRecording(stream: MediaStream): Promise<void> {
+    try {
+      this.audioContext = new AudioContext({ sampleRate: this.config!.rate });
+      this.mediaStreamSource = this.audioContext.createMediaStreamSource(stream);
+      
+      // 创建ScriptProcessorNode来获取原始PCM数据
+      this.scriptProcessor = this.audioContext.createScriptProcessor(4096, 1, 1);
+      
+      this.scriptProcessor.onaudioprocess = (event) => {
+        if (!this.isRecording) return;
+        
+        const inputBuffer = event.inputBuffer;
+        const inputData = inputBuffer.getChannelData(0);
+        
+        // 将Float32Array转换为Int16Array (16位PCM)
+        const pcmData = new Int16Array(inputData.length);
+        for (let i = 0; i < inputData.length; i++) {
+          pcmData[i] = Math.max(-32768, Math.min(32767, inputData[i] * 32768));
+        }
+        
+        // 转换为Uint8Array
+        const uint8Array = new Uint8Array(pcmData.buffer);
+        this.currentChunk.push(uint8Array);
+      };
+      
+      // 连接音频节点
+      this.mediaStreamSource.connect(this.scriptProcessor);
+      this.scriptProcessor.connect(this.audioContext.destination);
+      
+      // 启动200ms分包定时器
+      this.startChunking();
+      
+    } catch (error) {
+      console.error("启动PCM录音失败:", error);
+      throw error;
+    }
+  }
+
+  // 启动MediaRecorder录音（兼容其他格式）
+  private async startMediaRecorderRecording(stream: MediaStream): Promise<void> {
+    this.mediaRecorder = new MediaRecorder(stream, {
+      mimeType: this.getMimeType(),
+    });
+
+    this.mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        this.audioChunks.push(event.data);
+        this.sendAudioChunkDirectly(event.data);
+      }
+    };
+
+    this.mediaRecorder.onstop = () => {
+      this.processAudio();
+      stream.getTracks().forEach(track => track.stop());
+    };
+
+    this.mediaRecorder.start(200);
+  }
+
+  // 停止PCM录音
+  private stopPCMRecording(): void {
+    if (this.chunkInterval) {
+      clearInterval(this.chunkInterval);
+      this.chunkInterval = null;
+    }
+    
+    if (this.scriptProcessor) {
+      this.scriptProcessor.disconnect();
+      this.scriptProcessor = null;
+    }
+    
+    if (this.mediaStreamSource) {
+      this.mediaStreamSource.disconnect();
+      this.mediaStreamSource = null;
+    }
+    
+    if (this.audioContext) {
+      this.audioContext.close();
+      this.audioContext = null;
+    }
+    
+    // 发送最后一个音频块
+    if (this.currentChunk.length > 0) {
+      this.sendPCMChunk();
+    }
+  }
+
+  // 启动200ms分包定时器
+  private startChunking(): void {
+    this.chunkInterval = window.setInterval(() => {
+      if (this.currentChunk.length > 0) {
+        this.sendPCMChunk();
+      }
+    }, 200);
+  }
+
+  // 发送PCM音频块
+  private sendPCMChunk(): void {
+    if (this.currentChunk.length === 0 || !this.sendAudioASR) {
+      return;
+    }
+
+    try {
+      // 合并所有PCM数据
+      const totalLength = this.currentChunk.reduce((sum, chunk) => sum + chunk.length, 0);
+      const mergedData = new Uint8Array(totalLength);
+      let offset = 0;
+      
+      for (const chunk of this.currentChunk) {
+        mergedData.set(chunk, offset);
+        offset += chunk.length;
+      }
+      
+      // 发送音频块到服务器
+      this.sendAudioASR(mergedData);
+      
+      // 清空当前块
+      this.currentChunk = [];
+    } catch (error) {
+      console.error("发送PCM音频块失败:", error);
     }
   }
 
@@ -152,8 +270,6 @@ export class ASRService {
       const arrayBuffer = await audioBlob.arrayBuffer();
       const uint8Array = new Uint8Array(arrayBuffer);
 
-      console.log("发送音频块，大小:", uint8Array.length, "bytes");
-      
       // 发送音频块到服务器
       await this.sendAudioASR(uint8Array);
     } catch (error) {
@@ -184,7 +300,6 @@ export class ASRService {
     // 发送ASR结束标识
     if (this.sendAudioASR) {
       await this.sendASREndSignal();
-      console.log("ASR录音结束，已发送结束标识");
     } else {
       console.error("sendAudioASR函数未设置");
     }
@@ -197,12 +312,38 @@ export class ASRService {
 
   // 销毁服务
   destroy(): void {
-    if (this.mediaRecorder && this.isRecording) {
-      this.mediaRecorder.stop();
+    if (this.isRecording) {
+      this.stopRecording();
     }
     
-    this.mediaRecorder = null;
+    if (this.mediaRecorder) {
+      this.mediaRecorder.stop();
+      this.mediaRecorder = null;
+    }
+    
+    // 清理PCM资源
+    if (this.scriptProcessor) {
+      this.scriptProcessor.disconnect();
+      this.scriptProcessor = null;
+    }
+    
+    if (this.mediaStreamSource) {
+      this.mediaStreamSource.disconnect();
+      this.mediaStreamSource = null;
+    }
+    
+    if (this.audioContext) {
+      this.audioContext.close();
+      this.audioContext = null;
+    }
+    
+    if (this.chunkInterval) {
+      clearInterval(this.chunkInterval);
+      this.chunkInterval = null;
+    }
+    
     this.audioChunks = [];
+    this.currentChunk = [];
     this.isRecording = false;
     this.config = null;
     this.onResult = null;

@@ -42,8 +42,7 @@ function App() {
     localStorage.setItem('chat_token', newToken);
     localStorage.setItem('chat_info', JSON.stringify(newInfo));
 
-    const res = await getUserInfo()
-    console.log('userInfo',res)
+    await getUserInfo();
     
     setCurrentPage('chat');
   };

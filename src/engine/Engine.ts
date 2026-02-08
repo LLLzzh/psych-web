@@ -56,7 +56,6 @@ export class Engine {
     this.ws = new WebSocket(this.url);
 
     this.ws.onopen = () => {
-      console.log('onopen');
       if (this.reconnectTimer) {
         clearTimeout(this.reconnectTimer);
         this.reconnectTimer = undefined;
@@ -70,7 +69,6 @@ export class Engine {
         // 处理文本消息（主要是meta消息）
         this.handler.handleTextMessage(ev.data);
       } else if (ev.data instanceof ArrayBuffer) {
-        console.log('binary onmessage',ev.data)
         // 处理二进制消息
         this.handler.handleBinaryMessage(ev.data);
       } else if (ev.data instanceof Blob) {

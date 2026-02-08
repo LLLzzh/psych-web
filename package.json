@@ -10,9 +10,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.1.0",
+    "@ant-design/x": "^2.2.1",
     "@tailwindcss/vite": "^4.1.12",
     "@types/pako": "^2.0.4",
     "@types/react-router-dom": "^5.3.3",
+    "antd": "^6.2.2",
     "axios": "^1.11.0",
     "dayjs": "^1.11.13",
     "mitt": "^3.0.1",

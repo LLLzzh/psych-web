@@ -134,9 +134,6 @@ export function encodeMessage(msg: Message, meta: Meta): ArrayBuffer {
   
   if (meta.compression === 1) {
     // 实现GZIP压缩
-    if(msg.type !== MType.Ping){
-    console.log('send message: \n',jsonStr)
-    }
     const compressedData = pako.gzip(jsonStr);
     return compressedData.buffer;
   }
@@ -190,22 +187,17 @@ export function decodeMessage(buffer: ArrayBuffer, meta: Meta): Message | null {
 
 // 创建消息的辅助函数
 export function createMessage(type: MType, payload: unknown, timestamp?: number): Message {
-
-  console.log('create message: \n',{
-    type,
-    payload,
-    timestamp: formatTime(timestamp || Date.now()),
-  })
-
   if(type === MType.Ping){
     payload= {data: null}
+  } else {
+    console.log('send message (before encoding): \n', { type, payload, timestamp: formatTime(timestamp || Date.now()) });
   }
   const jsonPayload = JSON.stringify(payload);
   const base64Payload = utf8ToBase64(jsonPayload);
   
   return {
     type,
-    payload: base64Payload, // payload Base64编码
+    payload: base64Payload, 
     timestamp: formatTime(timestamp || Date.now()),
   };
 }
