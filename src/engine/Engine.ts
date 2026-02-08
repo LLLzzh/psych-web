@@ -18,9 +18,6 @@ export class Engine {
   private ws?: WebSocket;
   private heartbeatTimer?: number;
   private reconnectTimer?: number;
-  // private reconnectDelay = 2000;
-  // private isManuallyClosed = false;
-  private writeMutex = false; // 写入互斥锁
   public emitter = mitt<Events>();
   public handler: Handler;
 
@@ -51,7 +48,6 @@ export class Engine {
       console.warn("WebSocket is already connected or connecting.");
       return;
     }
-    // this.isManuallyClosed = false;
 
     this.ws = new WebSocket(this.url);
 
@@ -82,11 +78,6 @@ export class Engine {
     this.ws.onclose = () => {
       this.emitter.emit("close");
       this.stopHeartbeat();
-      // if (!this.isManuallyClosed) {
-      //   this.reconnectTimer = window.setTimeout(() => {
-      //     this.connect();
-      //   }, this.reconnectDelay);
-      // }
     };
 
     this.ws.onerror = (err) => {
@@ -96,24 +87,14 @@ export class Engine {
     };
   }
 
-  // 统一的写入接口，维护互斥锁
+  // 统一的写入接口
   async write(data: string | ArrayBuffer): Promise<void> {
-    if (this.writeMutex) {
-      console.warn("Write operation in progress, skipping");
-      return;
-    }
-    
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       console.error("WebSocket is not open");
       return;
     }
 
-    this.writeMutex = true;
-    try {
-      this.ws.send(data);
-    } finally {
-      this.writeMutex = false;
-    }
+    this.ws.send(data);
   }
 
   // 发送二进制消息
@@ -173,7 +154,6 @@ export class Engine {
   }
 
   close() {
-    // this.isManuallyClosed = true;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = undefined;

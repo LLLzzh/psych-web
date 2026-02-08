@@ -9,6 +9,6 @@ interface ConfigState {
 
 export const useConfigStore = create<ConfigState>((set) => ({
   config: null,
-  setConfig: (cfg) => set({ config: cfg }),
+  setConfig: (cfg: ConfigPayload) => set({ config: cfg }),
   clearConfig: () => set({ config: null }),
 }));

@@ -10,7 +10,7 @@ export default defineConfig({
       '/api': {
         target: 'https://api.xhpolaris.com',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '/psych')
+        rewrite: (path: string) => path.replace(/^\/api/, '/psych')
       }
     }
   }

@@ -4,6 +4,7 @@ import type {
   AxiosInstance,
   AxiosRequestConfig,
   AxiosResponse,
+  InternalAxiosRequestConfig,
 } from "axios";
 //定义接口返回的数据结构
 interface ApiResponse {
@@ -19,10 +20,12 @@ const service: AxiosInstance = axios.create({
 
 //请求拦截器
 service.interceptors.request.use(
-  (config) => {
+  (config: InternalAxiosRequestConfig) => {
     //发送请求前的处理>
     config.headers["X-Xh-Env"] = "test";
-    config.headers["Authorization"] = localStorage.getItem('chat_token');
+    if (config.headers) {
+      config.headers["Authorization"] = localStorage.getItem('chat_token');
+    }
     return config;
   },
   (error: AxiosError) => {
@@ -50,6 +53,10 @@ service.interceptors.response.use(
         case 401:
           message = "未授权，请重新登录";
           // 可以在这里处理登录过期逻辑
+          // 动态导入 store 以避免循环依赖
+          import("../store/authStore").then(({ useAuthStore }) => {
+            useAuthStore.getState().clearAuth();
+          });
           break;
         case 403:
           message = "拒绝访问";

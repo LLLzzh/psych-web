@@ -32,20 +32,19 @@ interface ChatState {
 
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
-  currentMessageId: 0,
   currentCmdId: 0,
   isConnected: false,
   isAuthenticated: false,
   error: null,
   asrResultHandler: null,
   
-  addMessage: (message) => {
+  addMessage: (message: ChatMessage) => {
     set((state) => ({
       messages: [...state.messages, message]
     }));
   },
   
-  updateLastMessage: (content) => {
+  updateLastMessage: (content: string) => {
     set((state) => {
       const messages = [...state.messages];
       if (messages.length > 0) {
@@ -58,7 +57,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
   
-  addAudioToLastMessage: (audioUrl) => {
+  addAudioToLastMessage: (audioUrl: string) => {
     set((state) => {
       const messages = [...state.messages];
       if (messages.length > 0) {
@@ -77,10 +76,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     return id;
   },
   
-  setConnected: (connected) => set({ isConnected: connected }),
-  setAuthenticated: (authenticated) => set({ isAuthenticated: authenticated }),
-  setError: (error) => set({ error }),
-  setASRResultHandler: (handler) => set({ asrResultHandler: handler }),
+  setConnected: (connected: boolean) => set({ isConnected: connected }),
+  setAuthenticated: (authenticated: boolean) => set({ isAuthenticated: authenticated }),
+  setError: (error: string | null) => set({ error }),
+  setASRResultHandler: (handler: (text: string) => void) => set({ asrResultHandler: handler }),
   clearMessages: () => set({ messages: [] }),
   clearError: () => set({ error: null }),
 }));
@@ -134,7 +133,7 @@ export function handleResponse(response: RespPayload): void {
       // 模型音频输出
       if (response.content instanceof Uint8Array) {
         // 将音频数据转换为Blob URL
-        const blob = new Blob([response.content], { type: "audio/wav" });
+        const blob = new Blob([response.content as unknown as BlobPart], { type: "audio/wav" });
         const audioUrl = URL.createObjectURL(blob);
         
         // 添加到最后一条助手消息

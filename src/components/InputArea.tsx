@@ -1,5 +1,7 @@
 import { useTextInput } from "../hooks/useTextInput";
 import { useVoiceRecording } from "../hooks/useVoiceRecording";
+import { useState } from "react";
+import { AudioOutlined, SendOutlined, EditOutlined } from "@ant-design/icons";
 
 interface InputAreaProps {
   isConnected: boolean;
@@ -7,7 +9,6 @@ interface InputAreaProps {
   onSendText: (text: string) => void;
   onStartASR: () => Promise<boolean>;
   onStopASR: () => Promise<void>;
-  onClearMessages: () => void;
 }
 
 export function InputArea({
@@ -16,9 +17,9 @@ export function InputArea({
   onSendText,
   onStartASR,
   onStopASR,
-  onClearMessages,
 }: InputAreaProps) {
   const isEnabled = isConnected && isAuthenticated;
+  const [inputMode, setInputMode] = useState<'text' | 'voice'>('text');
 
   // 文本输入逻辑
   const {
@@ -39,64 +40,111 @@ export function InputArea({
     enabled: isEnabled,
   });
 
+  // 切换模式处理
+  const handleToggleMode = () => {
+    if (inputMode === 'text') {
+      setInputMode('voice');
+    } else {
+      // 如果正在录音，先停止
+      if (isRecording) {
+        toggleRecording();
+      }
+      setInputMode('text');
+    }
+  };
+
   return (
-    <div className="p-5 bg-white border-t border-gray-200">
-      <div className="flex flex-col gap-2.5">
-        <div className="flex gap-2.5">
-          <textarea
-            className="flex-1 px-3 py-3 border border-gray-300 rounded text-sm font-inherit resize-y min-h-[60px] disabled:bg-gray-100 disabled:text-gray-500"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="输入消息..."
-            disabled={!isEnabled}
-            rows={3}
-          />
-          <button
-            onClick={toggleRecording}
-            disabled={!isEnabled}
-            className={`px-4 py-2 rounded text-sm cursor-pointer transition-colors duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed ${
-              isRecording
-                ? "bg-red-600 text-white hover:bg-red-700"
-                : "bg-green-600 text-white hover:bg-green-700"
-            }`}
-            title={isRecording ? "停止录音" : "开始录音"}
-          >
-            {isRecording ? (
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z"
-                  clipRule="evenodd"
+    <div className="px-8 pb-8 pt-4 bg-white/50 backdrop-blur-sm">
+      {inputMode === 'text' ? (
+        <div className="relative flex items-center gap-3">
+            <div className="flex-1 relative">
+                <input
+                    type="text"
+                    className="w-full h-14 pl-6 pr-14 bg-white rounded-full border border-gray-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-100 text-gray-700 placeholder-gray-400 text-[15px]"
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    placeholder="输入文字发送或点击麦克风对话..."
+                    disabled={!isEnabled}
                 />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path
-                  fillRule="evenodd"
-                  d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            )}
-          </button>
-        </div>
-        <div className="flex gap-2.5 justify-end">
+                {/* 语音切换按钮 - 在输入框右侧内部 */}
+                <button
+                    onClick={handleToggleMode}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 transition-colors"
+                >
+                    <AudioOutlined className="text-xl" />
+                </button>
+            </div>
+          
+          {/* 发送按钮 */}
           <button
             onClick={handleSend}
             disabled={!canSend}
-            className="px-4 py-2 bg-blue-600 text-white border-none rounded text-sm cursor-pointer transition-colors duration-200 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            className={`w-14 h-14 flex-shrink-0 flex items-center justify-center rounded-full transition-all duration-200 ${
+                canSend 
+                ? "bg-blue-600 text-white shadow-md hover:bg-blue-700 hover:shadow-lg hover:scale-105" 
+                : "bg-gray-200 text-gray-400 cursor-not-allowed"
+            }`}
           >
-            发送
-          </button>
-          <button
-            onClick={onClearMessages}
-            className="px-4 py-2 bg-gray-600 text-white border-none rounded text-sm cursor-pointer transition-colors duration-200 hover:bg-gray-700"
-          >
-            清空消息
+            <SendOutlined className="text-xl" />
           </button>
         </div>
-      </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-4 bg-white rounded-[30px] border border-gray-100 shadow-sm relative overflow-hidden">
+            {/* 顶部文字 */}
+            <div className="text-sm text-gray-500 mb-6 font-medium tracking-wide">
+                {isRecording ? "正在讲话..." : "点击开始说话"}
+            </div>
+
+            {/* 波形动画区域 */}
+            <div className="h-16 flex items-center justify-center gap-1.5 mb-6">
+                {isRecording ? (
+                    // 模拟波形动画
+                    Array.from({ length: 20 }).map((_, i) => (
+                        <div 
+                            key={i} 
+                            className="w-1.5 bg-blue-500 rounded-full animate-pulse"
+                            style={{
+                                height: `${Math.random() * 20 + 10}px`,
+                                opacity: Math.random() * 0.5 + 0.5,
+                                animationDuration: `${Math.random() * 0.5 + 0.5}s`
+                            }}
+                        />
+                    ))
+                ) : (
+                    // 静止状态
+                    <div className="w-full h-[1px] bg-gray-200 w-64" />
+                )}
+            </div>
+
+            {/* 底部按钮组 */}
+            <div className="flex items-center gap-8">
+                 {/* 切换回文字 */}
+                <button
+                    onClick={handleToggleMode}
+                    className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                    title="切换到文字输入"
+                >
+                    <EditOutlined />
+                </button>
+
+                {/* 录音控制主按钮 */}
+                <button
+                    onClick={toggleRecording}
+                    className={`w-16 h-16 flex items-center justify-center rounded-full shadow-lg transition-all duration-300 ${
+                        isRecording 
+                        ? "bg-red-500 text-white hover:bg-red-600 scale-110 ring-4 ring-red-100" 
+                        : "bg-blue-600 text-white hover:bg-blue-700 hover:scale-105"
+                    }`}
+                >
+                    <AudioOutlined className="text-2xl" />
+                </button>
+
+                 {/* 占位，保持平衡，或者放置其他功能 */}
+                <div className="w-10 h-10" />
+            </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,20 +1,18 @@
 import { useState } from "react"
-import { login, type LoginRequset, type LoginResponse, type UserInfo } from "../apis/login"
+import { useNavigate } from "react-router-dom"
+import { login, type LoginRequset, type LoginResponse } from "../apis/login"
+import { useAuthStore } from "../store/authStore"
+import { CONFIG } from "../config"
 
-
-
-interface LoginProps {
-    onLoginSuccess?: (userId: string, token: string, info: UserInfo) => void;
-}
-
-function Login({ onLoginSuccess }: LoginProps) {
+function Login() {
+    const navigate = useNavigate();
+    const setAuth = useAuthStore((state) => state.setAuth);
     const [authId, setAuthId] = useState("");
     const [verifyCode, setVerifyCode] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
-    const [, setInfo] = useState<UserInfo | null>(null);
 
-    const unitId: string = "683beddbdcc71f894d67e3b3"
+    const unitId: string = CONFIG.UNIT_ID
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -45,9 +43,9 @@ function Login({ onLoginSuccess }: LoginProps) {
                 const { token, ...info } = response.data;
 
 
-                if (onLoginSuccess && info.userId &&token) {
-                    onLoginSuccess(info.userId, token, info);
-                    setInfo(info);
+                if (info.userId && token) {
+                    setAuth(info.userId, token, info);
+                    navigate('/chat');
                 } else {
                     setError("登录成功但返回数据格式异常");
                 }
