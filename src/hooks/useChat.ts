@@ -5,6 +5,7 @@ import { useChatStore, handleResponse } from "../store/chatStore";
 import { type AuthPayload, AuthType } from "../protocol/auth";
 import type { UserInfo } from "../apis/login";
 import { ASRService } from "../services/ASRService";
+import { CONFIG } from "../config";
 //import { decodeMessage, type Meta } from "../protocol/message";
 
 export function useChat(url: string, userId: string, token: string, info: UserInfo) {
@@ -19,7 +20,6 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
     clearError,
     nextCmdId,
     addMessage,
-    setASRResultHandler,
     isConnected,
     isAuthenticated,
   } = useChatStore();
@@ -28,6 +28,15 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
   const memoizedInfo = useMemo(() => info, [info.userId, info.strong, info.unitId, info.studentId]);
 
   useEffect(() => {
+    if (CONFIG.USE_MOCK) {
+      setConnected(true);
+      setAuthenticated(true);
+      clearError();
+      return () => {
+        setConnected(false);
+        setAuthenticated(false);
+      };
+    }
     const engine = new Engine(url);
     engineRef.current = engine;
 
@@ -66,7 +75,11 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
         asrServiceRef.current.initialize(
           config.asrConfig,
           (text: string) => {
-            // ASR识别结果回调，添加到消息列表
+            const { asrResultHandler } = useChatStore.getState();
+            if (asrResultHandler) {
+              asrResultHandler(text);
+              return;
+            }
             addMessage({
               id: `user-${Date.now()}`,
               type: "user",
@@ -76,13 +89,6 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
           },
           sendAudioASR
         );
-        
-        // 设置ASR结果处理函数
-        setASRResultHandler((text: string) => {
-          if (asrServiceRef.current) {
-            asrServiceRef.current.handleASRResult(text);
-          }
-        });
       }
     });
 
@@ -117,10 +123,13 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
       setConnected(false);
       setAuthenticated(false);
     };
-  }, [url, userId, token, memoizedInfo]);
+  }, [url, userId, token, memoizedInfo, addMessage, clearError, nextCmdId, setAuthenticated, setConfig, setConnected, setError]);
 
   // 发送文本消息
   const sendText = async (text: string) => {
+    if (CONFIG.USE_MOCK) {
+      return;
+    }
     if (!engineRef.current || !isConnected || !isAuthenticated) {
       console.warn("连接未就绪，无法发送消息");
       return;

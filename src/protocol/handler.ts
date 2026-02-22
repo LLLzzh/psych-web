@@ -61,6 +61,7 @@ export class Handler {
     try {
       const meta = JSON.parse(text) as Meta;
       this.setMeta(meta);
+      console.info("receive meta", meta);
       this.emitter.emit("connected");
     } catch (error) {
       console.error("Failed to parse meta message:", error);
@@ -78,6 +79,7 @@ export class Handler {
         { 
           const config = parsePayload<ConfigPayload>(message);
           if (config) {
+            console.info("receive config", config);
             this.emitter.emit("config", config);
           }
           break; 
@@ -86,6 +88,7 @@ export class Handler {
       case MType.Err:
         { const error = parsePayload<ErrPayload>(message);
         if (error) {
+          console.info("receive error", error);
           this.emitter.emit("error", error);
         }
         break; }
@@ -93,6 +96,11 @@ export class Handler {
       case MType.Resp:
         { const response = parsePayload<RespPayload>(message);
         if (response) {
+          if (typeof response.content.content === "string") {
+            console.info("receive response text", { id: response.id, type: response.type, content: response.content.content });
+          } else {
+            console.info("receive response audio", { id: response.id, type: response.type, size: response.content.content.length });
+          }
           this.emitter.emit("response", response);
         }
         break; }

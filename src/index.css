@@ -18,3 +18,56 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+@keyframes voice-wave {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.voice-wave-bar {
+  transform-origin: center;
+  animation: voice-wave 1.2s ease-in-out infinite;
+}
+
+@keyframes background-rotate-1 {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  95% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes background-rotate-2 {
+  0%,
+  45% {
+    opacity: 0;
+  }
+  50%,
+  95% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.background-rotate-1 {
+  animation: background-rotate-1 12s ease-in-out infinite;
+}
+
+.background-rotate-2 {
+  animation: background-rotate-2 12s ease-in-out infinite;
+}

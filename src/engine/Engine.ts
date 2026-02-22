@@ -49,6 +49,7 @@ export class Engine {
       return;
     }
 
+    console.info("WebSocket connecting:", this.url);
     this.ws = new WebSocket(this.url);
 
     this.ws.onopen = () => {
@@ -56,19 +57,16 @@ export class Engine {
         clearTimeout(this.reconnectTimer);
         this.reconnectTimer = undefined;
       }
+      console.info("WebSocket open");
       this.emitter.emit("open");
-      // 注意：不在这里开始心跳，等待收到meta消息后再开始
     };
 
     this.ws.onmessage = (ev) => {
       if (typeof ev.data === "string") {
-        // 处理文本消息（主要是meta消息）
         this.handler.handleTextMessage(ev.data);
       } else if (ev.data instanceof ArrayBuffer) {
-        // 处理二进制消息
         this.handler.handleBinaryMessage(ev.data);
       } else if (ev.data instanceof Blob) {
-        // 处理Blob类型的消息
         ev.data.arrayBuffer().then(buffer => {
           this.handler.handleBinaryMessage(buffer);
         });
@@ -76,6 +74,7 @@ export class Engine {
     };
 
     this.ws.onclose = () => {
+      console.info("WebSocket closed");
       this.emitter.emit("close");
       this.stopHeartbeat();
     };
@@ -122,6 +121,7 @@ export class Engine {
   async sendTextMessage(id: number, text: string): Promise<void> {
     const buffer = this.handler.createTextCmd(id, text);
     if (buffer) {
+      console.info("send text", { id, text });
       await this.sendBinary(buffer);
     }
   }
@@ -130,6 +130,7 @@ export class Engine {
   async sendAudioASRMessage(id: number, audioData: Uint8Array): Promise<void> {
     const buffer = this.handler.createAudioASRCmd(id, audioData);
     if (buffer) {
+      console.info("send audio asr", { id, size: audioData.length });
       await this.sendBinary(buffer);
     }
   }

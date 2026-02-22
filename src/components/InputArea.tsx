@@ -1,7 +1,15 @@
 import { useTextInput } from "../hooks/useTextInput";
 import { useVoiceRecording } from "../hooks/useVoiceRecording";
-import { useState } from "react";
-import { AudioOutlined, SendOutlined, EditOutlined } from "@ant-design/icons";
+import { useConfigStore } from "../store/configStore";
+import { useChatStore } from "../store/chatStore";
+import { useEffect, useState } from "react";
+import { message } from "antd";
+import microphoneIcon from "../assets/microphone.svg";
+import endSpeechIcon from "../assets/end-speech.svg";
+import sendIcon from "../assets/send.svg";
+import { CONFIG } from "../config";
+
+
 
 interface InputAreaProps {
   isConnected: boolean;
@@ -19,132 +27,150 @@ export function InputArea({
   onStopASR,
 }: InputAreaProps) {
   const isEnabled = isConnected && isAuthenticated;
-  const [inputMode, setInputMode] = useState<'text' | 'voice'>('text');
+  const allowActions = isEnabled || CONFIG.USE_MOCK;
+  const { theme } = useConfigStore();
+  const setASRResultHandler = useChatStore((state) => state.setASRResultHandler);
+  const [inputMode, setInputMode] = useState<"text" | "voice">("text");
 
   // 文本输入逻辑
   const {
     inputText,
     setInputText,
     handleSend,
-    handleKeyPress,
     canSend,
   } = useTextInput({
     onSend: onSendText,
-    enabled: isEnabled,
+    enabled: true,
   });
 
   // 语音录制逻辑
-  const { isRecording, toggleRecording } = useVoiceRecording({
+  const { isRecording, startRecording, stopRecording } = useVoiceRecording({
     onStartRecording: onStartASR,
     onStopRecording: onStopASR,
-    enabled: isEnabled,
+    enabled: allowActions,
   });
 
-  // 切换模式处理
-  const handleToggleMode = () => {
-    if (inputMode === 'text') {
-      setInputMode('voice');
-    } else {
-      // 如果正在录音，先停止
-      if (isRecording) {
-        toggleRecording();
-      }
-      setInputMode('text');
+  useEffect(() => {
+    setASRResultHandler((text) => {
+      setInputText(text);
+      setInputMode("text");
+    });
+  }, [setASRResultHandler, setInputText]);
+
+  const handleEnterVoiceMode = async () => {
+    if (!allowActions) {
+      message.warning("连接未建立，无法录音");
+      return;
+    }
+    setInputMode("voice");
+    if (!CONFIG.USE_MOCK) {
+      await startRecording();
     }
   };
 
+  const handleSendClick = async () => {
+    if (!allowActions) {
+      message.warning("连接未建立，无法发送");
+      return;
+    }
+    await handleSend();
+  };
+
+  const handleKeyPressGuard = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      void handleSendClick();
+    }
+  };
+
+  const handleStopRecording = async () => {
+    if (isRecording) {
+      await stopRecording();
+    }
+    setInputMode("text");
+  };
+
+  const waveHeights = [12, 18, 26, 34, 28, 20, 14, 24, 30, 18, 26, 34, 20, 28, 12, 22, 30, 16, 24, 32];
+
   return (
-    <div className="px-8 pb-8 pt-4 bg-white/50 backdrop-blur-sm">
-      {inputMode === 'text' ? (
-        <div className="relative flex items-center gap-3">
-            <div className="flex-1 relative">
-                <input
-                    type="text"
-                    className="w-full h-14 pl-6 pr-14 bg-white rounded-full border border-gray-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-100 text-gray-700 placeholder-gray-400 text-[15px]"
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder="输入文字发送或点击麦克风对话..."
-                    disabled={!isEnabled}
-                />
-                {/* 语音切换按钮 - 在输入框右侧内部 */}
-                <button
-                    onClick={handleToggleMode}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 transition-colors"
-                >
-                    <AudioOutlined className="text-xl" />
-                </button>
-            </div>
-          
-          {/* 发送按钮 */}
-          <button
-            onClick={handleSend}
-            disabled={!canSend}
-            className={`w-14 h-14 flex-shrink-0 flex items-center justify-center rounded-full transition-all duration-200 ${
-                canSend 
-                ? "bg-blue-600 text-white shadow-md hover:bg-blue-700 hover:shadow-lg hover:scale-105" 
-                : "bg-gray-200 text-gray-400 cursor-not-allowed"
+    <div className={`px-4 pb-4 pt-2 h-18 mb-16 mx-4 md:px-8 md:pb-8 md:pt-4 md:h-44 md:mb-24 md:mx-40`}>
+      <div
+          className={`w-full h-18 rounded-[20px] pl-6 pr-8 pt-2 flex items-start md:h-44 md:pl-11 md:pr-23 md:pt-3 ${
+            theme === "light"
+              ? "bg-[rgba(255,255,255,0.3)] border-2 border-white drop-shadow-[0_0_30px_rgba(0,0,0,0.02)] backdrop-blur-[10px]"
+              : "bg-gray-800/50 border border-gray-700 backdrop-blur-sm"
+          }`}
+        >
+
+        
+      {inputMode === "text" ? (
+        <>
+        <textarea
+            className={`flex-1 h-full bg-transparent outline-none text-[11px] sm:text-[15px] resize-none pt-1 ${
+              theme === "light"
+                ? "text-gray-700 placeholder-gray-400"
+                : "text-gray-100 placeholder-gray-400"
             }`}
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyPress={handleKeyPressGuard}
+            placeholder="输入文字发送或点击麦克风对话..."
+          />
+          <div className="flex items-center h-full gap-4 pt-1 md:gap-9">
+            <button
+              onClick={handleEnterVoiceMode}
+              className={`w-[30px] h-[30px] hover:cursor-pointer hover:scale-110 border md:border-[3px] border-solid border-[#96C0FF] flex items-center justify-center rounded-full duration-200 transition-all md:w-18 md:h-18  ${
+                theme === "light"
+                  ? "text-gray-500 hover:cursor-pointer"
+                  : "text-gray-400 hover:cursor-pointer"
+              }`}
+              type="button"
+            >
+              <img className="w-4 h-4 object-contain md:w-7.5 md:h-7.5" src={microphoneIcon} alt="" />
+            </button>
+            <button
+              onClick={handleSendClick}
+              className={`w-[30px] h-[30px] hover:cursor-pointer hover:scale-110 flex items-center justify-center rounded-full transition-all duration-200 shadow-[0px_13.5px_18px_-4.5px_rgba(28,25,23,0.08),0px_4.5px_6.75px_-2.25px_rgba(28,25,23,0.03)] md:w-18 md:h-18 ${
+                canSend
+                  ?  "text-white bg-[linear-gradient(303.86deg,#8686FF_6.61%,#96C0FF_93.39%)]"
+                  : theme === "light"
+                  ? "bg-gray-200 text-gray-400"
+                  : "bg-gray-600 text-gray-500"
+              }`}
+              type="button"
+            >
+              <img className="w-4 h-4 object-contain md:w-7.5 md:h-7.5" src={sendIcon} alt="" />
+            </button>
+          </div>
+        </>
+          
+      ) : (
+        <div className="flex items-center w-full h-full">
+          <div className="flex-1 h-10 flex items-center gap-1.5 md:h-16">
+            {waveHeights.map((height, i) => (
+              <div
+                key={i}
+                className={`w-1.5 rounded-full ${theme === "light" ? "bg-blue-500" : "bg-blue-300"} ${
+                  isRecording || (CONFIG.USE_MOCK && inputMode === "voice") ? "voice-wave-bar" : ""
+                }`}
+                style={{
+                  height: `${height}px`,
+                  animationDelay: `${i * 0.08}s`,
+                }}
+              />
+            ))}
+          </div>
+          <button
+            onClick={handleStopRecording}
+            className={`hover:cursor-pointer hover:scale-105 w-[30px] h-[30px] bg-[linear-gradient(303.86deg,#8686FF_6.61%,#96C0FF_93.39%)] flex items-center justify-center rounded-full transition-all duration-200 shadow-[0px_13.5px_18px_-4.5px_rgba(28,25,23,0.08),0px_4.5px_6.75px_-2.25px_rgba(28,25,23,0.03)]
+          md:w-18 md:h-18`}
+            type="button"
           >
-            <SendOutlined className="text-xl" />
+            <img className="w-4 h-4 object-contain md:w-7.5 md:h-7.5" src={endSpeechIcon} alt="" />
           </button>
         </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center py-4 bg-white rounded-[30px] border border-gray-100 shadow-sm relative overflow-hidden">
-            {/* 顶部文字 */}
-            <div className="text-sm text-gray-500 mb-6 font-medium tracking-wide">
-                {isRecording ? "正在讲话..." : "点击开始说话"}
-            </div>
-
-            {/* 波形动画区域 */}
-            <div className="h-16 flex items-center justify-center gap-1.5 mb-6">
-                {isRecording ? (
-                    // 模拟波形动画
-                    Array.from({ length: 20 }).map((_, i) => (
-                        <div 
-                            key={i} 
-                            className="w-1.5 bg-blue-500 rounded-full animate-pulse"
-                            style={{
-                                height: `${Math.random() * 20 + 10}px`,
-                                opacity: Math.random() * 0.5 + 0.5,
-                                animationDuration: `${Math.random() * 0.5 + 0.5}s`
-                            }}
-                        />
-                    ))
-                ) : (
-                    // 静止状态
-                    <div className="w-full h-[1px] bg-gray-200 w-64" />
-                )}
-            </div>
-
-            {/* 底部按钮组 */}
-            <div className="flex items-center gap-8">
-                 {/* 切换回文字 */}
-                <button
-                    onClick={handleToggleMode}
-                    className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
-                    title="切换到文字输入"
-                >
-                    <EditOutlined />
-                </button>
-
-                {/* 录音控制主按钮 */}
-                <button
-                    onClick={toggleRecording}
-                    className={`w-16 h-16 flex items-center justify-center rounded-full shadow-lg transition-all duration-300 ${
-                        isRecording 
-                        ? "bg-red-500 text-white hover:bg-red-600 scale-110 ring-4 ring-red-100" 
-                        : "bg-blue-600 text-white hover:bg-blue-700 hover:scale-105"
-                    }`}
-                >
-                    <AudioOutlined className="text-2xl" />
-                </button>
-
-                 {/* 占位，保持平衡，或者放置其他功能 */}
-                <div className="w-10 h-10" />
-            </div>
-        </div>
       )}
+      </div>
     </div>
   );
 }
