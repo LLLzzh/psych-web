@@ -21,7 +21,7 @@ function Login() {
         
         // 表单验证
         if (!authId.trim()) {
-            setError("请输入账号号");
+            setError("请输入账号");
             return;
         }
         if (!verifyCode.trim()) {
@@ -34,7 +34,7 @@ function Login() {
         try {
             const loginParams: LoginRequset = {
                 unitId: unitId,
-                authType: 'AuthStudentIdAndPwd',
+                authType: 'AuthPhoneAndPwd',
                 authId: authId.trim(),
                 verifyCode: verifyCode.trim()
             }

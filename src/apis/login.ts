@@ -13,7 +13,6 @@ export interface LoginResponse {
     msg: string;
     data: {
         userId: string;
-        strong: boolean;
         token: string;
         unitId: string;
         studentId: string;
@@ -22,7 +21,6 @@ export interface LoginResponse {
 
 export interface UserInfo {
     userId: string;
-    strong: boolean;
     unitId: string;
     studentId: string;
 }

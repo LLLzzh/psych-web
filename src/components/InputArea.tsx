@@ -1,5 +1,6 @@
 import { useTextInput } from "../hooks/useTextInput";
 import { useVoiceRecording } from "../hooks/useVoiceRecording";
+import { useTestRecording } from "../hooks/useTestRecording";
 import { useConfigStore } from "../store/configStore";
 import { useChatStore } from "../store/chatStore";
 import { useEffect, useState } from "react";
@@ -50,6 +51,9 @@ export function InputArea({
     enabled: allowActions,
   });
 
+  // 测试录音（仅 USE_MOCK 时显示）
+  const { isRecording: isTestRecording, toggleRecording: toggleTestRecording } = useTestRecording();
+
   useEffect(() => {
     setASRResultHandler((text) => {
       setInputText(text);
@@ -94,6 +98,23 @@ export function InputArea({
 
   return (
     <div className={`px-4 pb-4 pt-2 h-18 mb-16 mx-4 md:px-8 md:pb-8 md:pt-4 md:h-44 md:mb-24 md:mx-40`}>
+      {CONFIG.USE_MOCK && (
+        <div className="mb-2 flex justify-end">
+          <button
+            type="button"
+            onClick={toggleTestRecording}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              isTestRecording
+                ? "bg-red-500 text-white"
+                : theme === "light"
+                ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                : "bg-gray-600 text-gray-200 hover:bg-gray-500"
+            }`}
+          >
+            {isTestRecording ? "停止并播放" : "测试录音"}
+          </button>
+        </div>
+      )}
       <div
           className={`w-full h-18 rounded-[20px] pl-6 pr-8 pt-2 flex items-start md:h-44 md:pl-11 md:pr-23 md:pt-3 ${
             theme === "light"

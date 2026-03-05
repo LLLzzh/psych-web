@@ -52,12 +52,12 @@ export function Sidebar({
   };
 
   return (
-    <div className={`${collapsed ? "px-4" : "px-6"} h-16 w-full md:h-full ${theme === "light" ? "bg-[rgba(255,255,255,0.35)] shadow-[8px_0px_20px_rgba(233,241,252,0.6)]" : "bg-[rgba(0,0,0,0.4)]"} opacity-80 [filter:drop-shadow(0px_4px_5px_rgba(134,141,187,0.05))_drop-shadow(0px_0px_30px_rgba(0,0,0,0.02))] [backdrop-filter:blur(10px)] [transform:matrix(1,0,0,-1,0,0)] md:opacity-100 md:[filter:none] md:[backdrop-filter:none] md:[transform:none] rounded-t-[10px] md:rounded-[20px] md:rounded-tr-[20px] md:rounded-br-[20px] flex flex-row md:flex-col items-center py-2 md:pt-12 transition-all duration-300 ease-in-out ${
+    <div className={`${collapsed ? "px-4" : "px-6"} h-16 w-full md:h-full ${theme === "light" ? "bg-[rgba(255,255,255,0.35)] shadow-[8px_0px_20px_rgba(233,241,252,0.6)]" : "bg-[rgba(0,0,0,0.4)]"} opacity-80 filter-[drop-shadow(0px_4px_5px_rgba(134,141,187,0.05))_drop-shadow(0px_0px_30px_rgba(0,0,0,0.02))] [backdrop-filter:blur(10px)] md:opacity-100 md:[filter:none] md:[backdrop-filter:none] rounded-t-[10px] md:rounded-[20px] md:rounded-tr-[20px] md:rounded-br-[20px] flex flex-row md:flex-col items-center py-2 md:pt-12 transition-all duration-300 ease-in-out ${
       collapsed
         ? "md:w-20"
         : "md:w-76"
     }`}>
-      <div className="w-full h-full flex items-center justify-between md:flex-col md:items-stretch md:justify-start md:h-full transform-[matrix(1,0,0,-1,0,0)] md:transform:none">
+      <div className="w-full h-full flex items-center justify-between md:flex-col md:items-stretch md:justify-start md:h-full ">
         <div className="w-full flex items-center justify-between md:hidden">
           <div className="flex items-center gap-4">
             <button
