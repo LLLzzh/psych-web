@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { message as antMessage } from "antd";
 import { login, type LoginRequset, type LoginResponse } from "../apis/login"
 import { useAuthStore } from "../store/authStore"
 import logoDark from "../assets/logo-dark.png"
@@ -12,7 +13,6 @@ function Login() {
     const [authId, setAuthId] = useState("");
     const [verifyCode, setVerifyCode] = useState("");
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
 
     const unitId: string = CONFIG.UNIT_ID
 
@@ -21,16 +21,15 @@ function Login() {
         
         // 表单验证
         if (!authId.trim()) {
-            setError("请输入账号");
+            antMessage.error("请输入账号");
             return;
         }
         if (!verifyCode.trim()) {
-            setError("请输入密码");
+            antMessage.error("请输入密码");
             return;
         }
 
         setLoading(true);
-        setError("");
         try {
             const loginParams: LoginRequset = {
                 unitId: unitId,
@@ -49,10 +48,10 @@ function Login() {
                     setAuth(info.userId, token, info);
                     navigate('/chat');
                 } else {
-                    setError("登录成功但返回数据格式异常");
+                    antMessage.error("登录成功但返回数据格式异常");
                 }
             } else {
-                setError("登录成功但返回数据格式异常");
+                antMessage.error("登录成功但返回数据格式异常");
             }
         } catch (error: unknown) {
             console.error("登录失败:", error);
@@ -65,7 +64,7 @@ function Login() {
                 }
             }
             
-            setError(errorMessage);
+            antMessage.error(errorMessage);
         } finally {
             setLoading(false);
         }
@@ -85,12 +84,6 @@ function Login() {
                             <p className="text-lg font-medium mb-2 text-white">欢迎回来</p>
                             <p className="text-gray-300">请登录您的账户开始对话</p>
                         </div>
-                    
-                        {error && (
-                            <div className="mb-6 p-4 rounded-lg bg-[rgba(255,77,79,0.12)] border border-[rgba(255,77,79,0.35)]">
-                                <p className="text-red-200 text-sm">{error}</p>
-                            </div>
-                        )}
                     
                         <form onSubmit={handleSubmit} className="space-y-6">
                             <div>

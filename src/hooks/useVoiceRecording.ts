@@ -1,14 +1,16 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 interface UseVoiceRecordingOptions {
   onStartRecording: () => Promise<boolean>;
   onStopRecording: () => Promise<void>;
+  getRecordingState?: () => boolean;
   enabled?: boolean;
 }
 
 export function useVoiceRecording({
   onStartRecording,
   onStopRecording,
+  getRecordingState,
   enabled = true,
 }: UseVoiceRecordingOptions) {
   const [isRecording, setIsRecording] = useState(false);
@@ -41,6 +43,29 @@ export function useVoiceRecording({
       await startRecording();
     }
   }, [isRecording, startRecording, stopRecording]);
+
+  useEffect(() => {
+    if (!isRecording || !getRecordingState) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      if (!getRecordingState()) {
+        setIsRecording(false);
+      }
+    }, 200);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [getRecordingState, isRecording]);
+
+  useEffect(() => {
+    if (!enabled || !isRecording) {
+      return;
+    }
+    void stopRecording();
+  }, [enabled, isRecording, stopRecording]);
 
   return {
     isRecording,

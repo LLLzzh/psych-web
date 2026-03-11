@@ -1,5 +1,6 @@
 import endIcon from "../assets/end.svg";
 import recordsLightIcon from "../assets/records-light.svg";
+import recordsDarkIcon from "../assets/records-dark.svg";
 
 type ButtonTheme = "light" | "dark";
 type ButtonVariant = "red" | "gray";
@@ -21,9 +22,7 @@ export function SidebarActionButton({
   theme,
   variant,
 }: SidebarActionButtonProps) {
-  const iconSrc = variant === "red" ? endIcon : recordsLightIcon;
-  const iconClassName =
-    variant === "gray" && theme === "dark" ? "invert" : "";
+  const iconSrc = variant === "red" ? endIcon : theme === "light" ? recordsLightIcon : recordsDarkIcon;
   const themeClassName =
     variant === "red"
       ? theme === "light"
@@ -37,7 +36,7 @@ export function SidebarActionButton({
   return (
     <button onClick={onClick} className={`hover:scale-105 mx-3 flex items-center justify-center py-3 rounded-full transition-all duration-200 ${className} ${themeClassName}`} type="button">
         <div className="flex mx-auto gap-2">
-          <img src={iconSrc} alt={label} className={`w-6 h-6 ${iconClassName}`} />
+          <img src={iconSrc} alt={label} className={`w-6 h-6`} />
       {!collapsed && <span className="text-l">{label}</span>}
         </div>
         

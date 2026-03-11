@@ -18,6 +18,10 @@ export class Engine {
   private ws?: WebSocket;
   private heartbeatTimer?: number;
   private reconnectTimer?: number;
+  private reconnectAttempts = 0;
+  private manualClose = false;
+  private readonly baseReconnectDelayMs = 1000;
+  private readonly maxReconnectDelayMs = 10000;
   public emitter = mitt<Events>();
   public handler: Handler;
 
@@ -44,6 +48,7 @@ export class Engine {
   }
 
   connect() {
+    this.manualClose = false;
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       console.warn("WebSocket is already connected or connecting.");
       return;
@@ -57,6 +62,7 @@ export class Engine {
         clearTimeout(this.reconnectTimer);
         this.reconnectTimer = undefined;
       }
+      this.reconnectAttempts = 0;
       console.info("WebSocket open");
       this.emitter.emit("open");
     };
@@ -77,13 +83,31 @@ export class Engine {
       console.info("WebSocket closed");
       this.emitter.emit("close");
       this.stopHeartbeat();
+      this.ws = undefined;
+      this.scheduleReconnect();
     };
 
     this.ws.onerror = (err) => {
       console.error("WebSocket error:", err);
       this.emitter.emit("wsError", err);
-      this.ws?.close();
+      this.ws?.close(); // 统一走onclose中的重连逻辑
     };
+  }
+
+  private scheduleReconnect() {
+    if (this.manualClose || this.reconnectTimer) {
+      return;
+    }
+
+    const delay = Math.min(this.baseReconnectDelayMs * (2 ** this.reconnectAttempts), this.maxReconnectDelayMs);
+    this.reconnectAttempts += 1;
+    console.info(`WebSocket reconnect scheduled in ${delay}ms`);
+    this.reconnectTimer = window.setTimeout(() => {
+      this.reconnectTimer = undefined;
+      if (!this.manualClose) {
+        this.connect();
+      }
+    }, delay);
   }
 
   // 统一的写入接口
@@ -112,6 +136,11 @@ export class Engine {
       // 通过handler创建ping消息
       const buffer = this.handler.createPingMessage();
       if (buffer) {
+        const now = new Date();
+        console.info("send heartbeat ping", {
+          timestamp: now.toISOString(),
+          localTime: now.toLocaleString(),
+        });
         await this.sendBinary(buffer);
       }
     }
@@ -155,6 +184,7 @@ export class Engine {
   }
 
   close() {
+    this.manualClose = true;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = undefined;

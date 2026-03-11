@@ -106,8 +106,8 @@ export interface CmdPayload {
 // 响应类型枚举
 export const RespType = {
   ModelText: 1,   // 模型文字输出
-  UserText: 2,    // 用户语音识别结果
-  ModelAudio: 3,  // 模型音频输出
+  ModelAudio: 2,  // 模型音频输出
+  UserText: 3,    // 用户语音识别结果
 } as const;
 
 export type RespType = typeof RespType[keyof typeof RespType];
@@ -116,15 +116,47 @@ export type RespType = typeof RespType[keyof typeof RespType];
 export interface RespPayload {
   id: number;
   type: RespType;
-  content: RespContent; // Text为string，Audio为二进制
+  content: RespContent; // 兼容扁平内容和嵌套内容结构
 }
 
-export interface RespContent {
+export interface RespContentEnvelope {
   content: string | Uint8Array;
   finish: "stop" | "null";
   id: number;
   session_id: string;
   timestamp: number;
+}
+
+export type RespContent = string | Uint8Array | RespContentEnvelope;
+
+// 从响应中提取真实内容，兼容以下两种结构：
+// 1) { content: "..." } 或 { content: Uint8Array }
+// 2) { content: { content: "...", ... } }
+export function getRespContentData(content: RespContent): string | Uint8Array | undefined {
+  if (typeof content === "string" || content instanceof Uint8Array) {
+    return content;
+  }
+
+  if (content && typeof content === "object" && "content" in content) {
+    const innerContent = content.content;
+    if (typeof innerContent === "string" || innerContent instanceof Uint8Array) {
+      return innerContent;
+    }
+  }
+
+  return undefined;
+}
+
+export function getRespContentFinish(content: RespContent): "stop" | "null" | undefined {
+  if (!content || typeof content !== "object") {
+    return undefined;
+  }
+
+  if ("finish" in content && (content.finish === "stop" || content.finish === "null")) {
+    return content.finish;
+  }
+
+  return undefined;
 }
 
 // 消息编码函数

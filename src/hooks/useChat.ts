@@ -19,13 +19,13 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
     setError,
     clearError,
     nextCmdId,
-    addMessage,
+    upsertStreamingUserMessage,
     isConnected,
     isAuthenticated,
   } = useChatStore();
 
   // 使用useMemo优化info对象依赖
-  const memoizedInfo = useMemo(() => info, [info.userId, info.strong, info.unitId, info.studentId]);
+  const memoizedInfo = useMemo(() => info, [info.userId, info.unitId, info.studentId]);
 
   useEffect(() => {
     if (CONFIG.USE_MOCK) {
@@ -70,22 +70,15 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
       setAuthenticated(true);
       
       // 初始化ASR服务
-      if (config.asrConfig && !asrServiceRef.current) {
-        asrServiceRef.current = new ASRService();
+      if (config.asrConfig) {
+        if (!asrServiceRef.current) {
+          asrServiceRef.current = new ASRService();
+        }
+        // 每次收到最新配置都刷新ASR参数，确保按后端asrConfig录音与发送
         asrServiceRef.current.initialize(
           config.asrConfig,
           (text: string) => {
-            const { asrResultHandler } = useChatStore.getState();
-            if (asrResultHandler) {
-              asrResultHandler(text);
-              return;
-            }
-            addMessage({
-              id: `user-${Date.now()}`,
-              type: "user",
-              content: text,
-              timestamp: Date.now(),
-            });
+            upsertStreamingUserMessage(text);
           },
           sendAudioASR
         );
@@ -108,12 +101,14 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
       console.error("WebSocket错误:", error);
       setError("连接错误");
       setConnected(false);
+      void asrServiceRef.current?.stopRecording();
     });
 
     // 连接关闭
     engine.emitter.on("close", () => {
       setConnected(false);
       setAuthenticated(false);
+      void asrServiceRef.current?.stopRecording();
     });
 
     engine.connect();
@@ -123,20 +118,21 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
       setConnected(false);
       setAuthenticated(false);
     };
-  }, [url, userId, token, memoizedInfo, addMessage, clearError, nextCmdId, setAuthenticated, setConfig, setConnected, setError]);
+  }, [url, userId, token, memoizedInfo, clearError, nextCmdId, setAuthenticated, setConfig, setConnected, setError, upsertStreamingUserMessage]);
 
   // 发送文本消息
-  const sendText = async (text: string) => {
+  const sendText = async (text: string): Promise<boolean> => {
     if (CONFIG.USE_MOCK) {
-      return;
+      return true;
     }
     if (!engineRef.current || !isConnected || !isAuthenticated) {
       console.warn("连接未就绪，无法发送消息");
-      return;
+      return false;
     }
 
     const cmdId = nextCmdId();
     await engineRef.current.sendTextMessage(cmdId, text);
+    return true;
   };
 
   // 发送音频ASR消息

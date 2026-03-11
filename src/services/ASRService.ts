@@ -1,5 +1,7 @@
 
 
+import { CONFIG } from "../config";
+
 export interface ASRConfig {
   id: string;
   format: string;
@@ -24,6 +26,15 @@ export class ASRService {
   private scriptProcessor: ScriptProcessorNode | null = null;
   private chunkInterval: number | null = null;
   private currentChunk: Uint8Array[] = [];
+  private recordedPcmChunks: Uint8Array[] = [];
+  private recordedMediaChunks: Blob[] = [];
+  private stream: MediaStream | null = null;
+  private lastVoiceAt = 0;
+  private hasVoiceInSegment = false;
+  private segmentSwitching = false;
+
+  private static readonly SILENCE_RMS_THRESHOLD = 0.012;
+  private static readonly AUTO_SEGMENT_SILENCE_MS = 1200;
 
   constructor() {
     this.audioChunks = [];
@@ -100,7 +111,16 @@ export class ASRService {
 
       this.audioChunks = [];
       this.currentChunk = [];
+      this.recordedPcmChunks = [];
+      this.recordedMediaChunks = [];
+      this.stream = stream;
       this.isRecording = true;
+      this.lastVoiceAt = Date.now();
+      this.hasVoiceInSegment = false;
+      this.segmentSwitching = false;
+
+      // 先通知后端开启ASR段，再启动分包发送，确保时序正确
+      await this.sendASRStartSignal();
 
       // 根据配置选择录音方式
       if (this.config.format.toLowerCase() === 'pcm') {
@@ -108,10 +128,7 @@ export class ASRService {
       } else {
         await this.startMediaRecorderRecording(stream);
       }
-      
-      // 发送ASR开始标识
-      await this.sendASRStartSignal();
-      
+
       return true;
 
     } catch (error) {
@@ -125,14 +142,26 @@ export class ASRService {
   async stopRecording(): Promise<void> {
     if (this.isRecording) {
       this.isRecording = false;
+      this.segmentSwitching = false;
       
       if (this.config?.format.toLowerCase() === 'pcm') {
-        this.stopPCMRecording();
+        await this.stopPCMRecording();
+        await this.sendASREndSignal();
       } else if (this.mediaRecorder) {
         this.mediaRecorder.stop();
+      } else {
+        await this.sendASREndSignal();
       }
-      
-      // 注意：ASR结束标识将在processAudio中发送，确保在音频数据发送后再发送
+
+      if (this.stream) {
+        this.stream.getTracks().forEach(track => track.stop());
+        this.stream = null;
+      }
+
+      // 停止后回放本次录音，便于快速验证采集链路是否正常
+      if (CONFIG.PLAY_LOCAL_RECORDING && this.config?.format.toLowerCase() === "pcm") {
+        this.playRecordedPCM();
+      }
     }
   }
 
@@ -150,7 +179,16 @@ export class ASRService {
         
         const inputBuffer = event.inputBuffer;
         const inputData = inputBuffer.getChannelData(0);
-        
+        let sumSquares = 0;
+        for (let i = 0; i < inputData.length; i++) {
+          sumSquares += inputData[i] * inputData[i];
+        }
+        const rms = Math.sqrt(sumSquares / inputData.length);
+        if (rms >= ASRService.SILENCE_RMS_THRESHOLD) {
+          this.lastVoiceAt = Date.now();
+          this.hasVoiceInSegment = true;
+        }
+
         // 将Float32Array转换为Int16Array (16位PCM)
         const pcmData = new Int16Array(inputData.length);
         for (let i = 0; i < inputData.length; i++) {
@@ -184,12 +222,16 @@ export class ASRService {
     this.mediaRecorder.ondataavailable = (event) => {
       if (event.data.size > 0) {
         this.audioChunks.push(event.data);
+        this.recordedMediaChunks.push(event.data);
         this.sendAudioChunkDirectly(event.data);
       }
     };
 
     this.mediaRecorder.onstop = () => {
       this.processAudio();
+      if (CONFIG.PLAY_LOCAL_RECORDING) {
+        this.playRecordedMedia();
+      }
       stream.getTracks().forEach(track => track.stop());
     };
 
@@ -197,7 +239,7 @@ export class ASRService {
   }
 
   // 停止PCM录音
-  private stopPCMRecording(): void {
+  private async stopPCMRecording(): Promise<void> {
     if (this.chunkInterval) {
       clearInterval(this.chunkInterval);
       this.chunkInterval = null;
@@ -220,21 +262,59 @@ export class ASRService {
     
     // 发送最后一个音频块
     if (this.currentChunk.length > 0) {
-      this.sendPCMChunk();
+      await this.sendPCMChunk();
     }
   }
 
   // 启动200ms分包定时器
   private startChunking(): void {
     this.chunkInterval = window.setInterval(() => {
+      if (!this.isRecording) {
+        return;
+      }
+
       if (this.currentChunk.length > 0) {
-        this.sendPCMChunk();
+        void this.sendPCMChunk();
+      }
+
+      const silentFor = Date.now() - this.lastVoiceAt;
+      if (
+        this.config?.resultType?.toLowerCase() !== "single" &&
+        this.hasVoiceInSegment &&
+        !this.segmentSwitching &&
+        silentFor >= ASRService.AUTO_SEGMENT_SILENCE_MS
+      ) {
+        void this.rotateASRSegment();
       }
     }, 200);
   }
 
+  // 静音分段：不停止录音，仅结束上一轮ASR并开启下一轮
+  private async rotateASRSegment(): Promise<void> {
+    if (!this.isRecording || this.segmentSwitching) {
+      return;
+    }
+    this.segmentSwitching = true;
+    try {
+      if (this.currentChunk.length > 0) {
+        await this.sendPCMChunk();
+      }
+      await this.sendASREndSignal();
+      if (!this.isRecording) {
+        return;
+      }
+      await this.sendASRStartSignal();
+      this.hasVoiceInSegment = false;
+      this.lastVoiceAt = Date.now();
+    } catch (error) {
+      console.error("切换ASR分段失败:", error);
+    } finally {
+      this.segmentSwitching = false;
+    }
+  }
+
   // 发送PCM音频块
-  private sendPCMChunk(): void {
+  private async sendPCMChunk(): Promise<void> {
     if (this.currentChunk.length === 0 || !this.sendAudioASR) {
       return;
     }
@@ -251,7 +331,10 @@ export class ASRService {
       }
       
       // 发送音频块到服务器
-      this.sendAudioASR(mergedData);
+      await this.sendAudioASR(mergedData);
+
+      // 额外保存一份本地录音，用于结束后回放
+      this.recordedPcmChunks.push(new Uint8Array(mergedData));
       
       // 清空当前块
       this.currentChunk = [];
@@ -305,6 +388,96 @@ export class ASRService {
     }
   }
 
+  private playRecordedPCM(): void {
+    if (!this.config || this.recordedPcmChunks.length === 0) {
+      return;
+    }
+
+    const blob = this.buildWavBlobFromPCM(
+      this.recordedPcmChunks,
+      this.config.rate,
+      this.config.channels,
+      this.config.bits
+    );
+    if (!blob) {
+      return;
+    }
+
+    this.playBlob(blob);
+  }
+
+  private playRecordedMedia(): void {
+    if (this.recordedMediaChunks.length === 0) {
+      return;
+    }
+    const mimeType = this.getMimeType();
+    const blob = new Blob(this.recordedMediaChunks, { type: mimeType });
+    this.playBlob(blob);
+  }
+
+  private playBlob(blob: Blob): void {
+    const audioUrl = URL.createObjectURL(blob);
+    const audio = new Audio(audioUrl);
+    audio.autoplay = true;
+    audio.onended = () => URL.revokeObjectURL(audioUrl);
+    audio.onerror = () => URL.revokeObjectURL(audioUrl);
+    void audio.play().catch(() => {
+      URL.revokeObjectURL(audioUrl);
+    });
+  }
+
+  private buildWavBlobFromPCM(
+    pcmChunks: Uint8Array[],
+    sampleRate: number,
+    channels: number,
+    bitsPerSample: number
+  ): Blob | null {
+    if (bitsPerSample !== 16) {
+      console.warn(`暂不支持 ${bitsPerSample} 位本地回放，当前仅支持16位PCM`);
+      return null;
+    }
+
+    const dataLength = pcmChunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+    if (dataLength === 0) {
+      return null;
+    }
+
+    const wavBuffer = new ArrayBuffer(44 + dataLength);
+    const view = new DataView(wavBuffer);
+
+    const writeString = (offset: number, text: string) => {
+      for (let i = 0; i < text.length; i++) {
+        view.setUint8(offset + i, text.charCodeAt(i));
+      }
+    };
+
+    const byteRate = sampleRate * channels * (bitsPerSample / 8);
+    const blockAlign = channels * (bitsPerSample / 8);
+
+    writeString(0, "RIFF");
+    view.setUint32(4, 36 + dataLength, true);
+    writeString(8, "WAVE");
+    writeString(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, channels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bitsPerSample, true);
+    writeString(36, "data");
+    view.setUint32(40, dataLength, true);
+
+    const wavData = new Uint8Array(wavBuffer);
+    let offset = 44;
+    for (const chunk of pcmChunks) {
+      wavData.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+
+    return new Blob([wavBuffer], { type: "audio/wav" });
+  }
+
   // 获取录音状态
   getRecordingState(): boolean {
     return this.isRecording;
@@ -340,6 +513,11 @@ export class ASRService {
     if (this.chunkInterval) {
       clearInterval(this.chunkInterval);
       this.chunkInterval = null;
+    }
+
+    if (this.stream) {
+      this.stream.getTracks().forEach(track => track.stop());
+      this.stream = null;
     }
     
     this.audioChunks = [];

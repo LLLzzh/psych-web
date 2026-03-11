@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./components/Login";
 import ChatPage from "./components/ChatPage";
+import ConversationRecordsPage from "./components/ConversationRecordsPage";
 import { useAuthStore } from "./store/authStore";
 import type { ReactNode } from "react";
 
@@ -18,6 +19,14 @@ function App() {
         element={
           <PrivateRoute>
             <ChatPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/records"
+        element={
+          <PrivateRoute>
+            <ConversationRecordsPage />
           </PrivateRoute>
         }
       />

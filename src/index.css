@@ -36,6 +36,23 @@ body {
   animation: voice-wave 1.2s ease-in-out infinite;
 }
 
+@keyframes voice-wave-slow {
+  0%,
+  100% {
+    transform: scaleY(0.5);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.voice-wave-bar-slow {
+  transform-origin: center;
+  animation: voice-wave-slow 2s ease-in-out infinite;
+}
+
 @keyframes background-rotate-1 {
   0%,
   45% {

@@ -5,6 +5,7 @@ import {
   decodeMessage, 
   createMessage,
   parsePayload,
+  getRespContentData,
   type Meta,
   type Message,
   type ConfigPayload,
@@ -96,10 +97,13 @@ export class Handler {
       case MType.Resp:
         { const response = parsePayload<RespPayload>(message);
         if (response) {
-          if (typeof response.content.content === "string") {
-            console.info("receive response text", { id: response.id, type: response.type, content: response.content.content });
+          const contentData = getRespContentData(response.content);
+          if (typeof contentData === "string") {
+            console.info("receive response text", { id: response.id, type: response.type, content: contentData });
+          } else if (contentData instanceof Uint8Array) {
+            console.info("receive response audio", { id: response.id, type: response.type, size: contentData.length });
           } else {
-            console.info("receive response audio", { id: response.id, type: response.type, size: response.content.content.length });
+            console.info("receive response unknown content", { id: response.id, type: response.type });
           }
           this.emitter.emit("response", response);
         }

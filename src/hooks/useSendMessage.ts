@@ -15,12 +15,22 @@ const requestMockReply = async (input: string) => {
   return mockReplies[index];
 };
 
+const waitForNextPaint = async (): Promise<void> => {
+  await new Promise<void>((resolve) => {
+    if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
+      setTimeout(resolve, 0);
+      return;
+    }
+    window.requestAnimationFrame(() => resolve());
+  });
+};
+
 interface UseSendMessageOptions {
-  sendText: (text: string) => Promise<void>;
+  sendText: (text: string) => Promise<boolean>;
 }
 
 export function useSendMessage({ sendText }: UseSendMessageOptions) {
-  const { addMessage } = useChatStore();
+  const { addMessage, addThinkingMessage, clearLastThinkingMessage } = useChatStore();
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -35,7 +45,10 @@ export function useSendMessage({ sendText }: UseSendMessageOptions) {
           content: text,
           timestamp: Date.now(),
         });
+        addThinkingMessage();
+        await waitForNextPaint();
         const reply = await requestMockReply(text);
+        clearLastThinkingMessage();
         addMessage({
           id: `assistant-${Date.now()}`,
           type: "assistant",
@@ -45,15 +58,20 @@ export function useSendMessage({ sendText }: UseSendMessageOptions) {
         return;
       }
 
-      await sendText(text);
       addMessage({
         id: Date.now().toString(),
         type: "user",
         content: text,
         timestamp: Date.now(),
       });
+      addThinkingMessage();
+      await waitForNextPaint();
+      const sent = await sendText(text);
+      if (!sent) {
+        clearLastThinkingMessage();
+      }
     },
-    [sendText, addMessage]
+    [sendText, addMessage, addThinkingMessage, clearLastThinkingMessage]
   );
 
   return {
