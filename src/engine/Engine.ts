@@ -110,6 +110,11 @@ export class Engine {
     }, delay);
   }
 
+  /** 发送前判断用；避免依赖 zustand「已认证」与 config 到达顺序（重连后可能出现 socket 已开但 isAuthenticated 仍为 false） */
+  isSocketOpen(): boolean {
+    return this.ws !== undefined && this.ws.readyState === WebSocket.OPEN;
+  }
+
   // 统一的写入接口
   async write(data: string | ArrayBuffer): Promise<void> {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {

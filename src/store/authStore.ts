@@ -17,8 +17,14 @@ export const useAuthStore = create<AuthState>()(
       userId: "",
       token: "",
       info: null,
-      setAuth: (userId, token, info) => set({ userId, token, info }),
-      clearAuth: () => set({ userId: "", token: "", info: null }),
+      setAuth: (userId, token, info) => {
+        if (token) localStorage.setItem("chat_token", token);
+        set({ userId, token, info });
+      },
+      clearAuth: () => {
+        localStorage.removeItem("chat_token");
+        set({ userId: "", token: "", info: null });
+      },
       isAuthenticated: () => {
         const { userId, token } = get();
         return !!userId && !!token;

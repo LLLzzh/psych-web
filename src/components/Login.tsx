@@ -33,7 +33,7 @@ function Login() {
         try {
             const loginParams: LoginRequset = {
                 unitId: unitId,
-                authType: 'AuthPhoneAndPwd',
+                authType: 'AuthStudentIdAndPwd',
                 authId: authId.trim(),
                 verifyCode: verifyCode.trim()
             }
@@ -72,7 +72,7 @@ function Login() {
 
     return (
         <div className="relative w-full h-screen overflow-hidden font-sans">
-            <Background themeOverride="dark" />
+            <Background themeOverride="dark" mobileOnly />
             <div className="relative z-10 min-h-screen w-screen flex items-center justify-center px-4 py-12">
                 <div className="w-full max-w-md">
                     <div className="rounded-[24px] p-8 backdrop-blur-[10px] shadow-[0px_20px_50px_rgba(45,43,81,0.12)] bg-[rgba(0,0,0,0.35)] text-white">

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { base64ToArrayBuffer, getRespContentData, getRespContentFinish, type RespPayload, RespType } from "../protocol/message";
+import { base64ToArrayBuffer, getRespContentData, type RespPayload, RespType } from "../protocol/message";
 import { useConfigStore } from "./configStore";
 
 export interface ChatMessage {
@@ -7,7 +7,7 @@ export interface ChatMessage {
   type: "user" | "assistant";
   content: string;
   timestamp: number;
-  audioUrl?: string; // 音频URL（如果有的话）
+  audioUrl?: string;
   isThinking?: boolean;
   isStreamingASR?: boolean;
 }
@@ -20,8 +20,11 @@ interface ChatState {
   error: string | null;
   asrFinalTick: number;
   asrResultHandler: ((text: string) => void) | null;
-  
-  // Actions
+  isTTSPlaying: boolean;
+  volumeLevel: number;
+  isAcceptingASR: boolean;
+  isSpeaking: boolean;
+
   addMessage: (message: ChatMessage) => void;
   upsertStreamingUserMessage: (content: string) => void;
   finalizeStreamingUserMessage: () => void;
@@ -35,6 +38,10 @@ interface ChatState {
   setAuthenticated: (authenticated: boolean) => void;
   setError: (error: string | null) => void;
   setASRResultHandler: (handler: (text: string) => void) => void;
+  setTTSPlaying: (playing: boolean) => void;
+  setVolumeLevel: (level: number) => void;
+  setAcceptingASR: (accepting: boolean) => void;
+  setIsSpeaking: (speaking: boolean) => void;
   clearMessages: () => void;
   clearError: () => void;
 }
@@ -47,7 +54,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   error: null,
   asrFinalTick: 0,
   asrResultHandler: null,
-  
+  isTTSPlaying: false,
+  volumeLevel: 0,
+  isAcceptingASR: false,
+  isSpeaking: false,
+
   addMessage: (message: ChatMessage) => {
     set((state) => ({
       messages: [...state.messages, message]
@@ -121,7 +132,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       ],
     }));
   },
-  
+
   updateLastMessage: (content: string) => {
     set((state) => {
       const messages = [...state.messages];
@@ -139,7 +150,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return { messages };
     });
   },
-  
+
   addAudioToLastMessage: (audioUrl: string) => {
     set((state) => {
       const messages = [...state.messages];
@@ -165,44 +176,40 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return { messages };
     });
   },
-  
+
   nextCmdId: () => {
     const id = get().currentCmdId;
     set((state) => ({ currentCmdId: state.currentCmdId + 1 }));
     return id;
   },
-  
+
   setConnected: (connected: boolean) => set({ isConnected: connected }),
   setAuthenticated: (authenticated: boolean) => set({ isAuthenticated: authenticated }),
   setError: (error: string | null) => set({ error }),
   setASRResultHandler: (handler: (text: string) => void) => set({ asrResultHandler: handler }),
-  clearMessages: () => set({ messages: [] }),
+  setTTSPlaying: (playing: boolean) => set({ isTTSPlaying: playing }),
+  setVolumeLevel: (level: number) => set({ volumeLevel: level }),
+  setAcceptingASR: (accepting: boolean) => set({ isAcceptingASR: accepting }),
+  setIsSpeaking: (speaking: boolean) => set({ isSpeaking: speaking }),
+  clearMessages: () => set({ messages: [], isAcceptingASR: false, isSpeaking: false }),
   clearError: () => set({ error: null }),
 }));
 
-function formatFinalASRText(text: string): string {
-  const normalized = text.replace(/\s+/g, " ").trim();
-  if (!normalized) {
-    return "";
-  }
-
-  const hasTerminalPunctuation = /[。！？!?]$/.test(normalized);
-  if (hasTerminalPunctuation || normalized.length < 6) {
-    return normalized;
-  }
-
-  return `${normalized}。`;
-}
+// ---------------------------------------------------------------------------
+// TTS PCM playback – gapless scheduling via AudioContext.currentTime
+// ---------------------------------------------------------------------------
 
 const BUFFER_THRESHOLD = 20;
 const PCM_FLUSH_DELAY_MS = 250;
-const PCM_IDLE_MS = 2000;
+const TTS_END_DELAY_MS = 500;
 
 let pcmAudioContext: AudioContext | null = null;
 let pcmQueue: ArrayBuffer[] = [];
-let pcmIsPlaying = false;
 let pcmFlushTimer: number | null = null;
 let pcmIdleTimer: number | null = null;
+let pcmScheduledEndTime = 0;
+let pcmActiveSources: AudioBufferSourceNode[] = [];
+let currentTTSAudioElement: HTMLAudioElement | null = null;
 
 function clearPcmFlushTimer(): void {
   if (pcmFlushTimer !== null) {
@@ -240,13 +247,13 @@ async function ensurePcmAudioContext(): Promise<AudioContext | null> {
 }
 
 function schedulePcmFlush(): void {
-  if (pcmIsPlaying || pcmFlushTimer !== null) {
+  if (pcmFlushTimer !== null) {
     return;
   }
   pcmFlushTimer = window.setTimeout(() => {
     pcmFlushTimer = null;
-    if (!pcmIsPlaying && pcmQueue.length > 0) {
-      void playNextPcmChunk();
+    if (pcmQueue.length > 0) {
+      void scheduleNextPcmBatch();
     }
   }, PCM_FLUSH_DELAY_MS);
 }
@@ -257,22 +264,22 @@ function enqueuePcmChunk(chunk: ArrayBuffer): void {
   }
   clearPcmIdleTimer();
   pcmQueue.push(chunk);
-  if (!pcmIsPlaying && pcmQueue.length >= BUFFER_THRESHOLD) {
+  useChatStore.getState().setTTSPlaying(true);
+  if (pcmQueue.length >= BUFFER_THRESHOLD) {
     clearPcmFlushTimer();
-    void playNextPcmChunk();
+    void scheduleNextPcmBatch();
     return;
   }
   schedulePcmFlush();
 }
 
-async function playNextPcmChunk(): Promise<void> {
+async function scheduleNextPcmBatch(): Promise<void> {
   const audioContext = await ensurePcmAudioContext();
   if (!audioContext || pcmQueue.length === 0) {
-    pcmIsPlaying = false;
+    console.info("[TTS] scheduleNextPcmBatch: audioContext 或队列为空", { hasContext: !!audioContext, queueLen: pcmQueue.length });
     return;
   }
 
-  pcmIsPlaying = true;
   clearPcmFlushTimer();
 
   const ttsConfig = useConfigStore.getState().config?.ttsConfig;
@@ -281,9 +288,10 @@ async function playNextPcmChunk(): Promise<void> {
   const bitsPerSample = ttsConfig?.bits ?? 16;
   const bytesPerSample = bitsPerSample / 8;
 
+  console.info("[TTS] scheduleNextPcmBatch: 配置", { channels, sampleRate, bitsPerSample, queueLen: pcmQueue.length });
+
   if (bytesPerSample !== 2) {
-    console.warn(`暂不支持 ${bitsPerSample} 位PCM，当前仅支持16位PCM`);
-    pcmIsPlaying = false;
+    console.warn(`[TTS] 暂不支持 ${bitsPerSample} 位PCM，当前仅支持16位PCM`);
     pcmQueue = [];
     return;
   }
@@ -300,8 +308,9 @@ async function playNextPcmChunk(): Promise<void> {
   }
 
   const totalFrames = Math.floor(merged.byteLength / (channels * bytesPerSample));
+  console.info("[TTS] scheduleNextPcmBatch: 准备播放", { totalBytes, totalFrames });
   if (totalFrames <= 0) {
-    pcmIsPlaying = false;
+    console.warn("[TTS] totalFrames <= 0，跳过播放");
     return;
   }
 
@@ -321,66 +330,80 @@ async function playNextPcmChunk(): Promise<void> {
 
   const gainNode = audioContext.createGain();
   gainNode.gain.value = 1;
-
   source.connect(gainNode);
   gainNode.connect(audioContext.destination);
 
-  source.onended = () => {
-    if (pcmQueue.length > 0) {
-      void playNextPcmChunk();
-      return;
-    }
-    pcmIsPlaying = false;
-    clearPcmIdleTimer();
-    pcmIdleTimer = window.setTimeout(() => {
-      if (pcmQueue.length === 0 && !pcmIsPlaying) {
-        pcmIsPlaying = false;
-      }
-    }, PCM_IDLE_MS);
-  };
+  const startTime = Math.max(audioContext.currentTime + 0.005, pcmScheduledEndTime);
+  source.start(startTime);
+  pcmScheduledEndTime = startTime + audioBuffer.duration;
+  pcmActiveSources.push(source);
 
-  source.start(0);
+  source.onended = () => {
+    pcmActiveSources = pcmActiveSources.filter(s => s !== source);
+
+    if (pcmQueue.length > 0) {
+      void scheduleNextPcmBatch();
+    } else if (pcmActiveSources.length === 0) {
+      clearPcmIdleTimer();
+      pcmIdleTimer = window.setTimeout(() => {
+        if (pcmQueue.length === 0 && pcmActiveSources.length === 0) {
+          useChatStore.getState().setTTSPlaying(false);
+        }
+      }, TTS_END_DELAY_MS);
+    }
+  };
 }
 
-// 处理响应的辅助函数
+export function stopTTSPlayback(): void {
+  for (const source of pcmActiveSources) {
+    try { source.stop(); } catch { /* already stopped */ }
+  }
+  pcmActiveSources = [];
+  pcmQueue = [];
+  pcmScheduledEndTime = 0;
+  clearPcmFlushTimer();
+  clearPcmIdleTimer();
+
+  if (currentTTSAudioElement) {
+    currentTTSAudioElement.pause();
+    currentTTSAudioElement.src = '';
+    currentTTSAudioElement = null;
+  }
+
+  useChatStore.getState().setTTSPlaying(false);
+}
+
+// ---------------------------------------------------------------------------
+// Response handler
+// ---------------------------------------------------------------------------
+
 export function handleResponse(response: RespPayload): void {
   const {
     addMessage,
     updateLastMessage,
     finalizeStreamingUserMessage,
-    notifyASRFinalized,
     upsertStreamingUserMessage,
   } = useChatStore.getState();
   const contentData = getRespContentData(response.content);
-  const finish = getRespContentFinish(response.content);
 
   switch (response.type) {
     case RespType.UserText:
-      // 用户语音识别结果
-      if (typeof contentData === "string") {
-        const isFinal = finish === "stop";
-        const displayText = isFinal ? formatFinalASRText(contentData) : contentData;
-        upsertStreamingUserMessage(displayText);
-        if (isFinal) {
-          finalizeStreamingUserMessage();
-          notifyASRFinalized();
-        }
+      console.info("[Chat] 收到 UserText:", contentData, "isAcceptingASR:", useChatStore.getState().isAcceptingASR);
+      if (typeof contentData === "string" && useChatStore.getState().isAcceptingASR) {
+        upsertStreamingUserMessage(contentData);
       }
       break;
-      
+
     case RespType.ModelText:
-      // 模型文字输出
+      console.info("[Chat] 收到 ModelText:", typeof contentData, contentData?.slice?.(0, 100));
       if (typeof contentData === "string") {
         finalizeStreamingUserMessage();
-        // 检查是否已有助手的消息
         const messages = useChatStore.getState().messages;
         const lastMessage = messages[messages.length - 1];
-        
+
         if (lastMessage && lastMessage.type === "assistant") {
-          // 追加到现有消息
           updateLastMessage(contentData);
         } else {
-          // 创建新消息
           addMessage({
             id: `assistant-${Date.now()}`,
             type: "assistant",
@@ -388,11 +411,16 @@ export function handleResponse(response: RespPayload): void {
             timestamp: Date.now(),
           });
         }
+      } else {
+        console.warn("[Chat] ModelText 内容不是字符串:", typeof contentData);
       }
       break;
-      
+
+    case RespType.ASRStop:
+      // Backend detected silence; actual stop logic handled in useChat via engine response listener
+      break;
+
     case RespType.ModelAudio:
-      // 模型音频输出
       {
         finalizeStreamingUserMessage();
 
@@ -400,37 +428,51 @@ export function handleResponse(response: RespPayload): void {
 
         if (contentData instanceof Uint8Array) {
           audioData = contentData;
+          console.info("[TTS] 收到 Uint8Array 音频数据, size:", audioData.length);
         } else if (typeof contentData === "string") {
-          // 后端返回base64时进行解码
           audioData = new Uint8Array(base64ToArrayBuffer(contentData));
+          console.info("[TTS] 收到 base64 音频数据, 解码后 size:", audioData.length);
+        } else {
+          console.warn("[TTS] 收到未知类型的音频数据:", typeof contentData);
         }
 
         if (!audioData) {
+          console.warn("[TTS] audioData 为空，跳过");
           break;
         }
 
         const ttsConfig = useConfigStore.getState().config?.ttsConfig;
         const ttsFormat = ttsConfig?.format?.toLowerCase();
         const ttsCodec = ttsConfig?.codec?.toLowerCase();
+        console.info("[TTS] ttsConfig:", { format: ttsFormat, codec: ttsCodec, rate: ttsConfig?.rate, bits: ttsConfig?.bits, channels: ttsConfig?.channels });
 
         if (ttsFormat === "pcm" && ttsCodec === "raw") {
-          // PCM/raw走缓冲队列播放，减少卡顿和爆音
+          console.info("[TTS] 使用 PCM raw 模式播放");
           enqueuePcmChunk(getSafeArrayBuffer(audioData));
           break;
         }
 
-        // 非PCM/raw场景按原先方式回退
         const blob = new Blob([audioData as unknown as BlobPart], { type: "audio/wav" });
         const audioUrl = URL.createObjectURL(blob);
-
-        // 直接自动播放，不在UI里渲染可见播放器
         const audio = new Audio(audioUrl);
         audio.autoplay = true;
-        audio.onended = () => URL.revokeObjectURL(audioUrl);
-        audio.onerror = () => URL.revokeObjectURL(audioUrl);
+
+        currentTTSAudioElement = audio;
+        useChatStore.getState().setTTSPlaying(true);
+
+        const cleanupAudio = () => {
+          URL.revokeObjectURL(audioUrl);
+          if (currentTTSAudioElement === audio) {
+            currentTTSAudioElement = null;
+            useChatStore.getState().setTTSPlaying(false);
+          }
+        };
+
+        audio.onended = cleanupAudio;
+        audio.onerror = cleanupAudio;
         void audio.play().catch((error) => {
           console.warn("自动播放语音失败:", error);
-          URL.revokeObjectURL(audioUrl);
+          cleanupAudio();
         });
       }
       break;

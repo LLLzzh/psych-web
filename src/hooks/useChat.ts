@@ -1,31 +1,51 @@
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useCallback } from "react";
 import { Engine } from "../engine/Engine";
 import { useConfigStore } from "../store/configStore";
-import { useChatStore, handleResponse } from "../store/chatStore";
+import { useChatStore, handleResponse, stopTTSPlayback } from "../store/chatStore";
 import { type AuthPayload, AuthType } from "../protocol/auth";
+import { RespType } from "../protocol/message";
 import type { UserInfo } from "../apis/login";
 import { ASRService } from "../services/ASRService";
 import { CONFIG } from "../config";
-//import { decodeMessage, type Meta } from "../protocol/message";
 
 export function useChat(url: string, userId: string, token: string, info: UserInfo) {
   const engineRef = useRef<Engine | null>(null);
   const asrServiceRef = useRef<ASRService | null>(null);
-  
+
   const setConfig = useConfigStore((state) => state.setConfig);
   const {
     setConnected,
     setAuthenticated,
     setError,
     clearError,
-    nextCmdId,
-    upsertStreamingUserMessage,
     isConnected,
     isAuthenticated,
   } = useChatStore();
 
-  // 使用useMemo优化info对象依赖
   const memoizedInfo = useMemo(() => info, [info.userId, info.unitId, info.studentId]);
+
+  // Ref-based callbacks: updated every render, so closures in useEffect / ASR
+  // service always reach the latest implementation without stale captures.
+  const sendTextRef = useRef<(text: string) => Promise<boolean>>(() => Promise.resolve(false));
+  sendTextRef.current = async (text: string): Promise<boolean> => {
+    if (CONFIG.USE_MOCK) return true;
+    const engine = engineRef.current;
+    if (!engine?.isSocketOpen()) {
+      console.warn("[useChat] 连接未就绪，无法发送消息");
+      return false;
+    }
+    const cmdId = useChatStore.getState().nextCmdId();
+    await engine.sendTextMessage(cmdId, text);
+    return true;
+  };
+
+  const sendAudioASRRef = useRef<(audioData: Uint8Array) => Promise<void>>(() => Promise.resolve());
+  sendAudioASRRef.current = async (audioData: Uint8Array) => {
+    const engine = engineRef.current;
+    if (!engine?.isSocketOpen()) return;
+    const cmdId = useChatStore.getState().nextCmdId();
+    await engine.sendAudioASRMessage(cmdId, audioData);
+  };
 
   useEffect(() => {
     if (CONFIG.USE_MOCK) {
@@ -40,23 +60,19 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
     const engine = new Engine(url);
     engineRef.current = engine;
 
-    // WebSocket连接建立
     engine.emitter.on("open", () => {
       setConnected(true);
       clearError();
     });
 
-    // 协议连接成功（收到meta）
     engine.emitter.on("connected", () => {
       engine.startHeartbeatAfterMeta();
-      
-      // 发送认证消息
-      
+
       const authPayload: AuthPayload = {
         authId: userId,
         authType: AuthType.AlreadyAuth,
         verifyCode: token,
-        info: memoizedInfo
+        info: memoizedInfo,
       };
       const authMessage = engine.handler.createAuthMessage(authPayload);
       if (authMessage) {
@@ -64,51 +80,80 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
       }
     });
 
-    // 收到配置消息
     engine.emitter.on("config", (config) => {
       setConfig(config);
       setAuthenticated(true);
-      
-      // 初始化ASR服务
+
       if (config.asrConfig) {
         if (!asrServiceRef.current) {
           asrServiceRef.current = new ASRService();
         }
-        // 每次收到最新配置都刷新ASR参数，确保按后端asrConfig录音与发送
         asrServiceRef.current.initialize(
           config.asrConfig,
-          (text: string) => {
-            upsertStreamingUserMessage(text);
-          },
-          sendAudioASR
+          (text: string) => useChatStore.getState().upsertStreamingUserMessage(text),
+          (audioData: Uint8Array) => sendAudioASRRef.current(audioData),
+          {
+            onVolumeChange: (rms: number) => useChatStore.getState().setVolumeLevel(rms),
+            onSpeakingChange: (speaking: boolean) => {
+              useChatStore.getState().setIsSpeaking(speaking);
+              if (speaking && useChatStore.getState().isTTSPlaying) {
+                stopTTSPlayback();
+              }
+            },
+          }
         );
       }
     });
 
-    // 收到响应消息
     engine.emitter.on("response", (response) => {
       handleResponse(response);
+
+      if (response.type === RespType.ASRStop) {
+        console.info("[useChat] <<< 收到后端 ASRStop (800ms静音)，本段 ASR 结束");
+
+        // handleServerStop 内部的 ws.send 是同步的（尽管函数签名为 async），
+        // 用 void 触发即可；下面的 sendText 也在同一个同步块中执行 ws.send，
+        // 这样两次发送都在 onclose 事件触发之前完成，避免连接关闭导致发送失败。
+        const asr = asrServiceRef.current;
+        if (asr) {
+          void asr.handleServerStop();
+        }
+
+        const store = useChatStore.getState();
+        const { messages } = store;
+        const lastMessage = messages[messages.length - 1];
+        if (lastMessage?.type === "user" && lastMessage.isStreamingASR) {
+          const text = lastMessage.content.trim();
+          console.info("[useChat] 本段识别文本:", text || "(空)");
+          if (text) {
+            store.addThinkingMessage();
+            void sendTextRef.current(text).then((sent) => {
+              if (!sent) useChatStore.getState().clearLastThinkingMessage();
+            });
+          }
+          store.finalizeStreamingUserMessage();
+        }
+      }
     });
 
-    // 收到协议错误
     engine.emitter.on("protocolError", (error) => {
       console.error("协议错误:", error);
       setError(error.message || "协议错误");
     });
 
-    // WebSocket错误
     engine.emitter.on("wsError", (error) => {
       console.error("WebSocket错误:", error);
       setError("连接错误");
       setConnected(false);
       void asrServiceRef.current?.stopRecording();
+      useChatStore.getState().setVolumeLevel(0);
     });
 
-    // 连接关闭
     engine.emitter.on("close", () => {
       setConnected(false);
       setAuthenticated(false);
       void asrServiceRef.current?.stopRecording();
+      useChatStore.getState().setVolumeLevel(0);
     });
 
     engine.connect();
@@ -118,62 +163,54 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
       setConnected(false);
       setAuthenticated(false);
     };
-  }, [url, userId, token, memoizedInfo, clearError, nextCmdId, setAuthenticated, setConfig, setConnected, setError, upsertStreamingUserMessage]);
+  }, [url, userId, token, memoizedInfo, clearError, setAuthenticated, setConfig, setConnected, setError]);
 
-  // 发送文本消息
-  const sendText = async (text: string): Promise<boolean> => {
-    if (CONFIG.USE_MOCK) {
-      return true;
+  // Stable callbacks returned to consumers – delegate to refs so the
+  // identity never changes and downstream useCallback / useMemo stay stable.
+  const sendText = useCallback(
+    (text: string) => sendTextRef.current(text),
+    [],
+  );
+
+  const startASR = useCallback(async () => {
+    if (!asrServiceRef.current) return false;
+    if (useChatStore.getState().isTTSPlaying) {
+      stopTTSPlayback();
     }
-    if (!engineRef.current || !isConnected || !isAuthenticated) {
-      console.warn("连接未就绪，无法发送消息");
-      return false;
-    }
+    useChatStore.getState().setAcceptingASR(true);
+    return await asrServiceRef.current.startContinuousRecording();
+  }, []);
 
-    const cmdId = nextCmdId();
-    await engineRef.current.sendTextMessage(cmdId, text);
-    return true;
-  };
-
-  // 发送音频ASR消息
-  const sendAudioASR = async (audioData: Uint8Array) => {
-    if (engineRef.current) {
-      const cmdId = nextCmdId();
-      await engineRef.current.sendAudioASRMessage(cmdId, audioData);
-    }
-  };
-
-  // ASR相关方法
-  const startASR = async () => {
+  const stopASR = useCallback(async () => {
     if (asrServiceRef.current) {
-      return await asrServiceRef.current.startRecording();
+      await asrServiceRef.current.stopContinuousRecording();
     }
-    return false;
-  };
 
-  const stopASR = async () => {
-    if (asrServiceRef.current) {
-      await asrServiceRef.current.stopRecording();
+    const store = useChatStore.getState();
+    store.setAcceptingASR(false);
+    store.setIsSpeaking(false);
+
+    const { messages } = store;
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.type === "user" && lastMessage.isStreamingASR) {
+      const text = lastMessage.content.trim();
+      store.finalizeStreamingUserMessage();
+      if (text) {
+        store.addThinkingMessage();
+        await sendTextRef.current(text);
+      }
     }
-  };
+  }, []);
 
-  const getASRState = () => {
+  const getASRState = useCallback(() => {
     return asrServiceRef.current?.getRecordingState() || false;
-  };
+  }, []);
 
-  const handleASRResult = (text: string) => {
-    if (asrServiceRef.current) {
-      asrServiceRef.current.handleASRResult(text);
-    }
-  };
-
-  return { 
-    sendText, 
-    sendAudioASR,
+  return {
+    sendText,
     startASR,
     stopASR,
     getASRState,
-    handleASRResult,
     isConnected,
     isAuthenticated,
   };

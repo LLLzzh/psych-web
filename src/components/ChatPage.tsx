@@ -2,6 +2,10 @@ import { useChat } from "../hooks/useChat";
 import { useSendMessage } from "../hooks/useSendMessage";
 import { useChatStore } from "../store/chatStore";
 import { useAuthStore } from "../store/authStore";
+import {
+  createConversation,
+  createConversationOnUnload,
+} from "../apis/conversation";
 import { Sidebar } from "./Sidebar";
 import { ChatArea } from "./ChatArea";
 import { InputArea } from "./InputArea";
@@ -11,7 +15,7 @@ import { MobileVoiceChatOverlay } from "./MobileVoiceChatOverlay";
 import { CONFIG } from "../config";
 import { useNavigate } from "react-router-dom";
 import { message } from "antd";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useConfigStore } from "../store/configStore";
 
 function ChatPage() {
@@ -23,7 +27,14 @@ function ChatPage() {
   const [endConversationSignal, setEndConversationSignal] = useState(0);
   const [enterVoiceModeSignal, setEnterVoiceModeSignal] = useState(0);
   const [isMobileVoiceMode, setIsMobileVoiceMode] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isMobileRecording, setIsMobileRecording] = useState(false);
+  
+  const hasMessagesRef = useRef(false);
+  const messages = useChatStore((state) => state.messages);
+  
+  useEffect(() => {
+    hasMessagesRef.current = messages.length > 0;
+  }, [messages.length]);
 
   const toggleSidebar = () => {
     setIsSidebarCollapsed(!isSidebarCollapsed);
@@ -35,6 +46,26 @@ function ChatPage() {
       navigate("/login");
     }
   }, [userId, token, navigate]);
+
+  // 离开页面时只有有消息才保存对话
+  useEffect(() => {
+    return () => {
+      if (userId && token && hasMessagesRef.current) {
+        void createConversation().catch(() => {});
+      }
+    };
+  }, [userId, token]);
+
+  // 关闭标签页、刷新页面时，只有有消息才保存对话
+  useEffect(() => {
+    const onPageHide = () => {
+      if (hasMessagesRef.current) {
+        createConversationOnUnload();
+      }
+    };
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
+  }, []);
 
   const {
     sendText,
@@ -65,16 +96,35 @@ function ChatPage() {
   }, [isConnected, isAuthenticated, hasShownConnected]);
 
   const handleLogout = () => {
-    clearAuth();
-    navigate("/login");
+    // 退出前只有有消息才记录当前对话
+    const saveAndLogout = () => {
+      clearAuth();
+      navigate("/login");
+    };
+    
+    if (hasMessagesRef.current) {
+      void createConversation()
+        .catch(() => {})
+        .finally(saveAndLogout);
+    } else {
+      saveAndLogout();
+    }
   };
 
   const handleEndConversation = () => {
+    const hadMessages = hasMessagesRef.current;
+    
     setEndConversationSignal((prev) => prev + 1);
     void stopASR();
     clearMessages();
     clearError();
     setIsMobileVoiceMode(false);
+    setIsMobileRecording(false);
+    
+    // 只有有消息时才保存对话
+    if (hadMessages) {
+      void createConversation().catch(() => {});
+    }
     message.success("对话已结束");
   };
 
@@ -90,17 +140,21 @@ function ChatPage() {
     setEndConversationSignal((prev) => prev + 1);
     void stopASR();
     setIsMobileVoiceMode(false);
+    setIsMobileRecording(false);
   }, [stopASR]);
 
-  const messages = useChatStore((state) => state.messages);
-  useEffect(() => {
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage?.type === "assistant" && !lastMessage.isThinking) {
-      setIsSpeaking(true);
-      const timer = setTimeout(() => setIsSpeaking(false), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [messages]);
+  const handleMobileStartASR = useCallback(async () => {
+    const ok = await startASR();
+    if (ok) setIsMobileRecording(true);
+    return ok;
+  }, [startASR]);
+
+  const handleMobileStopASR = useCallback(async () => {
+    await stopASR();
+    setIsMobileRecording(false);
+  }, [stopASR]);
+
+  const isTTSPlaying = useChatStore((state) => state.isTTSPlaying);
 
   // 使用消息发送 hook
   const { sendMessage } = useSendMessage({ sendText });
@@ -165,7 +219,10 @@ function ChatPage() {
         onClose={handleCloseMobileVoiceOverlay}
         onViewConversationRecords={() => navigate("/records")}
         onToggleTheme={toggleTheme}
-        isSpeaking={isSpeaking}
+        isSpeaking={isTTSPlaying}
+        onStartASR={handleMobileStartASR}
+        onStopASR={handleMobileStopASR}
+        isRecording={isMobileRecording}
       />
     </div>
   );

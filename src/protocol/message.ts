@@ -108,6 +108,7 @@ export const RespType = {
   ModelText: 1,   // 模型文字输出
   ModelAudio: 2,  // 模型音频输出
   UserText: 3,    // 用户语音识别结果
+  ASRStop: 4,     // 后端检测到静音，前端应发送ASR结束包
 } as const;
 
 export type RespType = typeof RespType[keyof typeof RespType];

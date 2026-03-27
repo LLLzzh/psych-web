@@ -1,4 +1,7 @@
-import type { ConversationMessageItem, PaginationInfo } from "../types/conversation";
+import { Spin, Empty } from "antd";
+import { useRef, useEffect } from "react";
+import { MESSAGE_ROLE, type ConversationMessageItem, type PaginationInfo } from "../types/conversation";
+import teacherAvatar from "../assets/teacher-avatar.png";
 
 type ThemeMode = "light" | "dark";
 
@@ -19,60 +22,116 @@ export function ConversationHistoryPanel({
   error,
   onLoadMore,
 }: ConversationHistoryPanelProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const onLoadMoreRef = useRef(onLoadMore);
+  onLoadMoreRef.current = onLoadMore;
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    const root = scrollRef.current;
+    if (!sentinel || !root || !pagination.hasNext) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          onLoadMoreRef.current();
+        }
+      },
+      { root, rootMargin: "100px 0px 0px 0px", threshold: 0 }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [pagination.hasNext, messageList.length]);
+
   return (
     <section
-      className={`h-full rounded-xl border p-3 md:p-4 flex flex-col ${
+      className={`flex h-full min-h-0 flex-col rounded-[10px] overflow-hidden ${
         theme === "light"
-          ? "bg-white border-[#E5EAF4]"
-          : "bg-[#151D2A] border-[#2B3342]"
+          ? "bg-white shadow-sm"
+          : "bg-[rgba(0,0,0,0.3)] backdrop-blur-[25px]"
       }`}
     >
+      <div className={`px-4 py-3 flex shrink-0 items-center justify-between border-b ${
+        theme === "light" ? "border-gray-100" : "border-white/10"
+      }`}>
+        <h2 className={`text-sm font-medium ${theme === "light" ? "text-[#1D2233]" : "text-white"}`}>
+          对话详情
+        </h2>
+      </div>
+
       {error && (
-        <div className="mb-3 rounded-xl bg-red-500/10 px-3 py-2 text-xs md:text-sm text-red-500">
+        <div className="mx-3 mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-500">
           {error}
         </div>
       )}
 
-      <div className={`flex-1 overflow-y-auto space-y-3 pr-1 rounded-lg p-2 md:p-3 ${
-        theme === "light" ? "bg-[#FAFCFF]" : "bg-[#101826]"
-      }`}>
-        {messageList.map((item) => {
-          const isUser = item.role === "user";
-          return (
-            <div key={item.index} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-              <div
-                className={`max-w-[92%] md:max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
-                  isUser
-                    ? "text-gray-800 [background:linear-gradient(90deg,rgba(150,192,255,0.52)_0%,rgba(130,137,247,0.52)_100%)]"
-                    : theme === "light"
-                      ? "bg-white text-[#1D2233] border border-[#EEF2FA]"
-                      : "bg-[#1F2A3D] text-white border border-[#2C3951]"
-                }`}
-              >
-                {item.content}
-              </div>
-            </div>
-          );
-        })}
+      <div 
+        ref={scrollRef}
+        className="min-h-0 flex-1 overflow-y-auto px-4 py-4"
+      >
+        {isLoading && messageList.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <Spin />
+          </div>
+        ) : messageList.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <Empty 
+              description={
+                <span className={theme === "light" ? "text-gray-400" : "text-white/50"}>
+                  选择对话查看详情
+                </span>
+              }
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+            />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {pagination.hasNext && (
+              <div ref={sentinelRef} className="h-1" aria-hidden="true" />
+            )}
 
-        {!isLoading && messageList.length === 0 && (
-          <div className={`rounded-[14px] p-5 text-center text-sm ${theme === "light" ? "text-[#6E7488] bg-white/70" : "text-white/70 bg-white/5"}`}>
-            暂无历史消息
+            {isLoading && (
+              <div className="flex items-center justify-center py-2">
+                <Spin size="small" />
+              </div>
+            )}
+            
+            {messageList.map((item) => {
+              const isStudent = item.role === MESSAGE_ROLE.STUDENT;
+              
+              return (
+                <div 
+                  key={item.index} 
+                  className={`flex ${isStudent ? "justify-end" : "justify-start"}`}
+                >
+                  {!isStudent && (
+                    <img
+                      src={teacherAvatar}
+                      alt="老师头像"
+                      className="w-8 h-8 rounded-full object-cover mr-2 shrink-0"
+                    />
+                  )}
+                  
+                  <div
+                    className={`max-w-[80%] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                      isStudent
+                        ? theme === "light"
+                          ? "text-gray-800 [background:#EDEEFF] shadow-[3.6px_3.6px_14.4px_rgba(45,43,81,0.03)] backdrop-blur-[5px] rounded-[15px]"
+                          : "text-white [background:rgba(0,0,0,0.3)] backdrop-blur-[25px] rounded-[30px]"
+                        : theme === "light"
+                          ? "bg-white text-gray-800 drop-shadow-[3.6px_3.6px_14.4px_#E9F1FC] backdrop-blur-[5px] rounded-[15px]"
+                          : "bg-[rgba(0,0,0,0.3)] text-gray-100 backdrop-blur-[25px] rounded-[30px]"
+                    }`}
+                  >
+                    {item.content}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
-      </div>
-
-      <div className="mt-2 flex justify-center">
-        <button
-          type="button"
-          onClick={onLoadMore}
-          disabled={!pagination.hasNext || isLoading}
-          className={`px-3 py-1 rounded-md text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-            theme === "light" ? "bg-[#EEF3FF] text-[#3C4A6B] hover:bg-[#E1E9FF]" : "bg-[#2A3342] text-white hover:bg-[#354257]"
-          }`}
-        >
-          {isLoading ? "加载中..." : pagination.hasNext ? "加载更多" : "没有更多了"}
-        </button>
       </div>
     </section>
   );

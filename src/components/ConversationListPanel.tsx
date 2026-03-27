@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+import { Spin, Empty } from "antd";
 import type { ConversationListItem, PaginationInfo } from "../types/conversation";
 
 type ThemeMode = "light" | "dark";
@@ -11,14 +13,28 @@ interface ConversationListPanelProps {
   error: string | null;
   onSelectConversation: (conversationId: string) => void;
   onLoadMore: () => void;
-  onCreateConversation: () => void;
 }
 
 function formatTimestamp(timestamp: number): string {
   if (!timestamp) {
     return "--";
   }
+  const now = Math.floor(Date.now() / 1000);
+  const diff = now - timestamp;
   const date = new Date(timestamp * 1000);
+  
+  if (diff < 60) {
+    return "刚刚";
+  } else if (diff < 3600) {
+    return `${Math.floor(diff / 60)}分钟前`;
+  } else if (diff < 86400) {
+    return `${Math.floor(diff / 3600)}小时前`;
+  } else if (diff < 86400 * 2) {
+    return "昨天 " + date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+  } else if (diff < 86400 * 7) {
+    return `${Math.floor(diff / 86400)}天前`;
+  }
+  
   return date.toLocaleString("zh-CN", {
     month: "2-digit",
     day: "2-digit",
@@ -36,82 +52,115 @@ export function ConversationListPanel({
   error,
   onSelectConversation,
   onLoadMore,
-  onCreateConversation,
 }: ConversationListPanelProps) {
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const onLoadMoreRef = useRef(onLoadMore);
+  onLoadMoreRef.current = onLoadMore;
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    const root = scrollContainerRef.current;
+    if (!sentinel || !root || !pagination.hasNext) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          onLoadMoreRef.current();
+        }
+      },
+      { root, rootMargin: "0px 0px 100px 0px", threshold: 0 }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [pagination.hasNext, conversationList.length]);
+
   return (
     <section
-      className={`h-full rounded-xl border p-3 md:p-4 ${
+      className={`flex h-full min-h-0 flex-col rounded-[10px] overflow-hidden ${
         theme === "light"
-          ? "bg-white border-[#E5EAF4]"
-          : "bg-[#151D2A] border-[#2B3342]"
+          ? "bg-white shadow-sm"
+          : "bg-[rgba(0,0,0,0.3)] backdrop-blur-[25px]"
       }`}
     >
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className={`text-sm md:text-base font-semibold ${theme === "light" ? "text-[#1D2233]" : "text-white"}`}>
-          对话记录
+      <div className={`px-4 py-3 flex shrink-0 items-center border-b ${
+        theme === "light" ? "border-gray-100" : "border-white/10"
+      }`}>
+        <h2 className={`text-sm font-medium ${theme === "light" ? "text-[#1D2233]" : "text-white"}`}>
+          历史对话
         </h2>
-        <button
-          type="button"
-          className="px-2.5 py-1 text-xs rounded-md bg-[linear-gradient(303.86deg,#8686FF_6.61%,#96C0FF_93.39%)] text-white hover:opacity-90 transition-opacity disabled:opacity-60"
-          onClick={onCreateConversation}
-          disabled={isLoading}
-        >
-          新建
-        </button>
       </div>
 
       {error && (
-        <div className="mb-3 rounded-xl bg-red-500/10 px-3 py-2 text-xs md:text-sm text-red-500">
+        <div className="mx-3 mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-500">
           {error}
         </div>
       )}
 
-      <div className="h-[calc(100%-5.25rem)] overflow-y-auto pr-1 space-y-1.5">
-        {conversationList.map((item) => {
-          const selected = item.conversationId === selectedConversationId;
-          return (
-            <button
-              key={item.conversationId}
-              type="button"
-              onClick={() => onSelectConversation(item.conversationId)}
-              className={`w-full rounded-lg border px-3 py-2.5 text-left transition-all ${
-                selected
-                  ? theme === "light"
-                    ? "bg-[#EEF3FF] border-[#DCE6FD]"
-                    : "bg-[#283449] border-[#3A4B67]"
-                  : theme === "light"
-                    ? "bg-white border-transparent hover:border-[#E5EAF4] hover:bg-[#FAFCFF]"
-                    : "bg-[#1A2332] border-transparent hover:border-[#2B3342]"
-              }`}
-            >
-              <div className={`line-clamp-1 text-sm ${theme === "light" ? "text-[#20263A]" : "text-white"}`}>
-                {item.brief || "新对话"}
-              </div>
-              <div className={`mt-1 text-[11px] ${theme === "light" ? "text-[#6E7488]" : "text-white/60"}`}>
-                {formatTimestamp(item.updateTime)}
-              </div>
-            </button>
-          );
-        })}
+      <div
+        ref={scrollContainerRef}
+        className="min-h-0 flex-1 overflow-y-auto px-2 py-2"
+      >
+        {isLoading && conversationList.length === 0 ? (
+          <div className="flex items-center justify-center h-32">
+            <Spin />
+          </div>
+        ) : conversationList.length === 0 ? (
+          <div className="flex items-center justify-center h-full py-8">
+            <Empty 
+              description={
+                <span className={theme === "light" ? "text-gray-400" : "text-white/50"}>
+                  暂无对话记录
+                </span>
+              }
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+            />
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {conversationList.map((item) => {
+              const selected = item.conversationId === selectedConversationId;
+              return (
+                <button
+                  key={item.conversationId}
+                  type="button"
+                  onClick={() => onSelectConversation(item.conversationId)}
+                  className={`w-full rounded-lg px-3 py-2.5 text-left transition-all ${
+                    selected
+                      ? theme === "light"
+                        ? "bg-[#EDEEFF]"
+                        : "bg-white/15"
+                      : theme === "light"
+                        ? "hover:bg-gray-50"
+                        : "hover:bg-white/5"
+                  }`}
+                >
+                  <div className={`line-clamp-1 text-sm ${
+                    theme === "light" ? "text-[#1D2233]" : "text-white"
+                  }`}>
+                    {item.brief || "新对话"}
+                  </div>
+                  <div className={`mt-1 text-[11px] ${
+                    theme === "light" ? "text-gray-400" : "text-white/45"
+                  }`}>
+                    {formatTimestamp(item.updateTime)}
+                  </div>
+                </button>
+              );
+            })}
 
-        {!isLoading && conversationList.length === 0 && (
-          <div className={`rounded-[14px] p-4 text-center text-sm ${theme === "light" ? "text-[#6E7488] bg-white/70" : "text-white/70 bg-white/5"}`}>
-            暂无对话记录
+            {isLoading && (
+              <div className="flex items-center justify-center py-3">
+                <Spin size="small" />
+              </div>
+            )}
+
+            {pagination.hasNext && (
+              <div ref={sentinelRef} className="h-1" aria-hidden="true" />
+            )}
           </div>
         )}
-      </div>
-
-      <div className="mt-2 flex items-center justify-center">
-        <button
-          type="button"
-          onClick={onLoadMore}
-          disabled={!pagination.hasNext || isLoading}
-          className={`px-3 py-1 rounded-md text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-            theme === "light" ? "bg-[#EEF3FF] text-[#3C4A6B] hover:bg-[#E1E9FF]" : "bg-[#2A3342] text-white hover:bg-[#354257]"
-          }`}
-        >
-          {isLoading ? "加载中..." : pagination.hasNext ? "加载更多" : "没有更多了"}
-        </button>
       </div>
     </section>
   );

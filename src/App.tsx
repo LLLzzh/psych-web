@@ -1,9 +1,13 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import Login from "./components/Login";
-import ChatPage from "./components/ChatPage";
-import ConversationRecordsPage from "./components/ConversationRecordsPage";
 import { useAuthStore } from "./store/authStore";
 import type { ReactNode } from "react";
+
+const ChatPage = lazy(() => import("./components/ChatPage"));
+const ConversationRecordsPage = lazy(
+  () => import("./components/ConversationRecordsPage")
+);
 
 function PrivateRoute({ children }: { children: ReactNode }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated());
@@ -18,7 +22,9 @@ function App() {
         path="/chat"
         element={
           <PrivateRoute>
-            <ChatPage />
+            <Suspense fallback={null}>
+              <ChatPage />
+            </Suspense>
           </PrivateRoute>
         }
       />
@@ -26,7 +32,9 @@ function App() {
         path="/records"
         element={
           <PrivateRoute>
-            <ConversationRecordsPage />
+            <Suspense fallback={null}>
+              <ConversationRecordsPage />
+            </Suspense>
           </PrivateRoute>
         }
       />

@@ -7,6 +7,7 @@ import user from "../assets/user.svg";
 import recordsIcon from "../assets/records-dark.svg";
 import switchIcon from "../assets/switch.svg";
 import closeIcon from "../assets/sidebar.png";
+import microphoneIcon from "../assets/microphone.svg";
 
 const MOCK_REPLIES = [
   "考试没考好确实会让人挺失落的，就像努力准备了很久的事情，结果却没达到预期，心里难免会有点空落落的，甚至可能会自责或者难过吧……",
@@ -20,6 +21,9 @@ interface MobileVoiceChatOverlayProps {
   onViewConversationRecords: () => void;
   onToggleTheme: () => void;
   isSpeaking: boolean;
+  onStartASR: () => Promise<boolean>;
+  onStopASR: () => Promise<void>;
+  isRecording: boolean;
 }
 
 export function MobileVoiceChatOverlay({
@@ -28,9 +32,14 @@ export function MobileVoiceChatOverlay({
   onViewConversationRecords,
   onToggleTheme,
   isSpeaking: externalIsSpeaking,
+  onStartASR,
+  onStopASR,
+  isRecording,
 }: MobileVoiceChatOverlayProps) {
   const messages = useChatStore((state) => state.messages);
   const addMessage = useChatStore((state) => state.addMessage);
+  const volumeLevel = useChatStore((state) => state.volumeLevel);
+  const isUserSpeaking = useChatStore((state) => state.isSpeaking);
 
   const [mockSpeaking, setMockSpeaking] = useState(false);
   const mockTimerRef = useRef<number | null>(null);
@@ -85,6 +94,14 @@ export function MobileVoiceChatOverlay({
     : lastAssistantMessage?.content || "";
 
   const waveHeights = [8, 12, 18, 24, 20, 16, 10, 14, 22, 18, 26, 20, 14, 18, 10, 16, 22, 12, 18, 24];
+
+  const handleToggleRecording = async () => {
+    if (isRecording) {
+      await onStopASR();
+    } else {
+      await onStartASR();
+    }
+  };
 
   if (!isVisible) {
     return null;
@@ -142,7 +159,7 @@ export function MobileVoiceChatOverlay({
                   ))}
                 </div>
                 <p className="text-white text-sm text-center mt-2">
-                  {isSpeaking ? "正在讲话" : "聆听中..."}
+                  {isSpeaking ? "正在讲话" : isRecording && isUserSpeaking ? "正在说话" : isRecording ? "聆听中..." : "点击下方按钮开始说话"}
                 </p>
               </div>
             </div>
@@ -174,27 +191,49 @@ export function MobileVoiceChatOverlay({
               <span className="text-white text-[11px]">对话记录</span>
             </button>
 
-            <div className="flex flex-col items-center gap-1.5">
-              <div className="w-[105px] h-[105px] rounded-full bg-[linear-gradient(135deg,rgba(150,192,255,0.6)_0%,rgba(134,134,255,0.6)_100%)] flex items-center justify-center shadow-[0_0_30px_rgba(150,192,255,0.5)]">
+            <button
+              type="button"
+              onClick={() => void handleToggleRecording()}
+              className="flex flex-col items-center gap-1.5"
+            >
+              <div className={`w-[105px] h-[105px] rounded-full flex items-center justify-center transition-all duration-300 ${
+                isRecording && isUserSpeaking
+                  ? "bg-[linear-gradient(135deg,rgba(255,100,100,0.6)_0%,rgba(255,60,60,0.6)_100%)] shadow-[0_0_30px_rgba(255,100,100,0.5)]"
+                  : isRecording
+                    ? "bg-[linear-gradient(135deg,rgba(150,192,255,0.4)_0%,rgba(134,134,255,0.4)_100%)] shadow-[0_0_20px_rgba(150,192,255,0.3)]"
+                    : "bg-[linear-gradient(135deg,rgba(150,192,255,0.6)_0%,rgba(134,134,255,0.6)_100%)] shadow-[0_0_30px_rgba(150,192,255,0.5)]"
+              }`}>
                 <div className="w-28 h-28 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                  <div className="flex items-center justify-center gap-[2px]">
-                    {[0, 1, 2, 3, 4].map((i) => (
-                      <div
-                        key={i}
-                        className={`w-[3px] rounded-full bg-white ${
-                          isSpeaking ? "" : "voice-wave-bar-slow"
-                        }`}
-                        style={{
-                          height: isSpeaking ? "6px" : "16px",
-                          animationDelay: `${i * 0.1}s`,
-                        }}
-                      />
-                    ))}
-                  </div>
+                  {isRecording && isUserSpeaking ? (
+                    <div className="flex items-center justify-center gap-[2px]">
+                      {[0, 1, 2, 3, 4].map((i) => {
+                        const vScale = Math.min(1, volumeLevel / 0.12);
+                        const listeningHeight = 6 + vScale * 18;
+                        return (
+                          <div
+                            key={i}
+                            className="w-[3px] rounded-full bg-white"
+                            style={{
+                              height: `${listeningHeight}px`,
+                              transition: 'height 80ms ease-out',
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                  ) : isRecording ? (
+                    <div className="flex items-center justify-center">
+                      <div className="w-3 h-3 rounded-full bg-white animate-pulse" />
+                    </div>
+                  ) : (
+                    <img className="w-8 h-8 object-contain brightness-0 invert" src={microphoneIcon} alt="" />
+                  )}
                 </div>
               </div>
-              <span className="text-white text-[11px] opacity-0">占位</span>
-            </div>
+              <span className="text-white text-[11px]">
+                {isRecording && isUserSpeaking ? "说话中" : isRecording ? "聆听中" : "点击说话"}
+              </span>
+            </button>
 
             <button
               type="button"

@@ -2,6 +2,7 @@ import { useTextInput } from "../hooks/useTextInput";
 import { useVoiceRecording } from "../hooks/useVoiceRecording";
 import { useTestRecording } from "../hooks/useTestRecording";
 import { useConfigStore } from "../store/configStore";
+import { useChatStore } from "../store/chatStore";
 import { useEffect, useRef, useState } from "react";
 import { message } from "antd";
 import microphoneIcon from "../assets/microphone.svg";
@@ -36,11 +37,12 @@ export function InputArea({
   const isEnabled = isConnected && isAuthenticated;
   const allowActions = isEnabled || CONFIG.USE_MOCK;
   const { theme } = useConfigStore();
+  const volumeLevel = useChatStore((state) => state.volumeLevel);
+  const isSpeaking = useChatStore((state) => state.isSpeaking);
   const [inputMode, setInputMode] = useState<"text" | "voice">("text");
   const lastEndConversationSignalRef = useRef(endConversationSignal);
   const lastEnterVoiceModeSignalRef = useRef(enterVoiceModeSignal);
 
-  // 文本输入逻辑
   const {
     inputText,
     setInputText,
@@ -51,7 +53,6 @@ export function InputArea({
     enabled: true,
   });
 
-  // 语音录制逻辑
   const { isRecording, startRecording, stopRecording } = useVoiceRecording({
     onStartRecording: onStartASR,
     onStopRecording: onStopASR,
@@ -59,22 +60,26 @@ export function InputArea({
     enabled: allowActions,
   });
 
-  // 测试录音（仅 USE_MOCK 时显示）
   const { isRecording: isTestRecording, toggleRecording: toggleTestRecording } = useTestRecording();
 
-  const handleEnterVoiceMode = async () => {
+  const handleEnterVoiceMode = () => {
     if (!allowActions) {
       message.warning("连接未建立，无法录音");
       return;
     }
     setInputMode("voice");
     onVoiceModeChange?.(true);
-    if (!CONFIG.USE_MOCK) {
-      const success = await startRecording();
-      if (!success) {
-        setInputMode("text");
-        onVoiceModeChange?.(false);
-      }
+  };
+
+  const handleToggleRecording = async () => {
+    if (!allowActions) {
+      message.warning("连接未建立，无法录音");
+      return;
+    }
+    if (isRecording) {
+      await stopRecording();
+    } else {
+      await startRecording();
     }
   };
 
@@ -97,21 +102,11 @@ export function InputArea({
     if (inputMode !== "voice" || allowActions) {
       return;
     }
-    // 连接断开时退出语音模式
     setInputMode("text");
     onVoiceModeChange?.(false);
   }, [allowActions, inputMode, onVoiceModeChange]);
 
   useEffect(() => {
-    if (inputMode !== "voice" || isRecording || CONFIG.USE_MOCK || !allowActions) {
-      return;
-    }
-    // 语音模式下保持录音，避免中断
-    void startRecording();
-  }, [allowActions, inputMode, isRecording, startRecording]);
-
-  useEffect(() => {
-    // 仅在侧边栏“结束对话”信号变化时退出语音模式
     if (endConversationSignal === lastEndConversationSignalRef.current) {
       return;
     }
@@ -206,21 +201,47 @@ export function InputArea({
       ) : (
         <div className="flex items-center w-full h-full">
           <div className="flex-1 h-10 flex items-center gap-1.5 md:h-16">
-            {waveHeights.map((height, i) => (
-              <div
-                key={i}
-                className={`w-1.5 rounded-full bg-blue-500 ${theme === "dark" ? "md:bg-blue-300" : ""} ${
-                  inputMode === "voice" ? "voice-wave-bar" : ""
-                }`}
-                style={{
-                  height: `${height}px`,
-                  animationDelay: `${i * 0.08}s`,
-                }}
-              />
-            ))}
+            {isRecording && isSpeaking ? (
+              waveHeights.map((height, i) => {
+                const vScale = Math.min(1, volumeLevel / 0.12);
+                const activeScale = 0.15 + vScale * 0.85;
+                return (
+                  <div
+                    key={i}
+                    className={`w-1.5 rounded-full bg-blue-500 ${theme === "dark" ? "md:bg-blue-300" : ""}`}
+                    style={{
+                      height: `${height * activeScale}px`,
+                      transition: 'height 80ms ease-out',
+                    }}
+                  />
+                );
+              })
+            ) : isRecording ? (
+              <span className={`text-[11px] md:text-sm animate-pulse ${theme === "dark" ? "md:text-gray-300" : "text-gray-500"}`}>
+                聆听中...
+              </span>
+            ) : (
+              <span className={`text-[11px] md:text-sm ${theme === "dark" ? "md:text-gray-300" : "text-gray-500"}`}>
+                点击麦克风开始说话
+              </span>
+            )}
           </div>
-          <div className={`ml-4 text-[11px] md:text-sm text-gray-600 ${theme === "dark" ? "md:text-gray-300" : ""}`}>
-            语音对话中，可在侧边栏点击“结束对话”
+          <div className="flex items-center h-full gap-4 pt-1 md:gap-9">
+            <button
+              onClick={handleToggleRecording}
+              className={`w-[30px] h-[30px] hover:cursor-pointer hover:scale-110 border md:border-[3px] border-solid flex items-center justify-center rounded-full duration-200 transition-all md:w-18 md:h-18 ${
+                isRecording
+                  ? "border-red-400 bg-red-50 md:bg-red-500/10"
+                  : "border-[#96C0FF]"
+              }`}
+              type="button"
+            >
+              {isRecording ? (
+                <div className="w-3 h-3 rounded-sm bg-red-500 md:w-5 md:h-5" />
+              ) : (
+                <img className="w-4 h-4 object-contain md:w-7.5 md:h-7.5" src={microphoneIcon} alt="" />
+              )}
+            </button>
           </div>
         </div>
       )}

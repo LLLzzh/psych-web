@@ -3,6 +3,8 @@ export interface PaginationInfo {
   page: number;
   limit: number;
   hasNext: boolean;
+  /** 部分接口使用游标分页时返回 */
+  nextToken?: string;
 }
 
 export interface ConversationListItem {
@@ -12,9 +14,16 @@ export interface ConversationListItem {
   updateTime: number;
 }
 
+export const MESSAGE_ROLE = {
+  TEACHER: 2,
+  STUDENT: 3,
+} as const;
+
+export type MessageRole = (typeof MESSAGE_ROLE)[keyof typeof MESSAGE_ROLE];
+
 export interface ConversationMessageItem {
   content: string;
-  role: "user" | "assistant";
+  role: MessageRole;
   index: number;
 }
 

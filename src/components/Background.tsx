@@ -1,10 +1,24 @@
 import { useConfigStore } from "../store/configStore";
-import backgroundImage from "../assets/background1.png";
-import backgroundImageAlt from "../assets/background2.png";
-import backgroundGradient from "../assets/background.png";
-import mobileBackground from "../assets/mobile-bg.png";
+import backgroundImage from "../assets/background1.jpg";
+import backgroundImageAlt from "../assets/background2.jpg";
+import mobileBackground from "../assets/mobile-bg.jpg";
 
 type ThemeMode = "light" | "dark";
+
+function GradientGlow({ dark = false }: { dark?: boolean }) {
+  return (
+    <div
+      className={`pointer-events-none absolute right-0 bottom-0 w-[52rem] h-[36rem] rounded-full blur-3xl hidden md:block ${
+        dark ? "opacity-75" : "opacity-40"
+      }`}
+      style={{
+        background:
+          "radial-gradient(ellipse at center, rgba(150,192,255,0.55) 0%, rgba(134,134,255,0.35) 42%, rgba(134,134,255,0.12) 68%, rgba(134,134,255,0) 100%)",
+      }}
+      aria-hidden="true"
+    />
+  );
+}
 
 interface BackgroundProps {
   themeOverride?: ThemeMode;
@@ -34,12 +48,7 @@ export function Background({
         {isLight ? (
           <>
             <div className="absolute inset-0 hidden md:block bg-[linear-gradient(63.63deg,#FAFCFF_66.08%,rgba(250,252,255,0.01)_87.44%,#FAFCFF_97.55%)]" />
-            <img
-              src={backgroundGradient}
-              alt=""
-              className="absolute right-61 w-262 bottom-0 pointer-events-none select-none opacity-33 hidden md:block"
-              aria-hidden="true"
-            />
+            <GradientGlow />
           </>
         ) : (
           <>
@@ -51,14 +60,9 @@ export function Background({
               className="absolute inset-0 bg-center bg-no-repeat bg-cover background-rotate-2 hidden md:block"
               style={{ backgroundImage: `url(${backgroundImageAlt})` }}
             />
-            <img
-              src={backgroundGradient}
-              alt=""
-              className="absolute right-61 w-262 bottom-0 pointer-events-none select-none opacity-60 hidden md:block"
-              aria-hidden="true"
-            />
+            <GradientGlow dark />
             {!hideDarkOverlay && (
-              <div className="absolute inset-0 bg-[rgba(105,105,105,0.4)] backdrop-blur-[1px] hidden md:block" />
+              <div className="absolute inset-0 bg-[rgba(105,105,105,0.6)] backdrop-blur-[2px] hidden md:block" />
             )}
           </>
         )}
@@ -99,12 +103,7 @@ export function Background({
           style={{ backgroundImage: `url(${mobileBackground})` }}
         />
         <div className="absolute inset-0 hidden md:block bg-[linear-gradient(63.63deg,#FAFCFF_66.08%,rgba(250,252,255,0.01)_87.44%,#FAFCFF_97.55%)]" />
-        <img
-          src={backgroundGradient}
-          alt=""
-          className="absolute right-61 w-262 bottom-0 pointer-events-none select-none opacity-33 hidden md:block"
-          aria-hidden="true"
-        />
+        <GradientGlow />
       </div>
     );
   }
@@ -123,14 +122,9 @@ export function Background({
         className="absolute inset-0 bg-center bg-no-repeat bg-cover background-rotate-2 hidden md:block"
         style={{ backgroundImage: `url(${backgroundImageAlt})` }}
       />
-      <img
-        src={backgroundGradient}
-        alt=""
-        className="absolute right-61 w-262 bottom-0 pointer-events-none select-none opacity-60 hidden md:block"
-        aria-hidden="true"
-      />
+      <GradientGlow dark />
       {!hideDarkOverlay && (
-        <div className="absolute inset-0 bg-[rgba(105,105,105,0.4)] backdrop-blur-[1px] hidden md:block" />
+        <div className="absolute inset-0 bg-[rgba(105,105,105,0.6)] backdrop-blur-[2px] hidden md:block" />
       )}
     </div>
   );

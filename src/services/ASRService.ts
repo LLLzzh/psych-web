@@ -1,5 +1,3 @@
-
-
 import { CONFIG } from "../config";
 
 export interface ASRConfig {
@@ -12,6 +10,15 @@ export interface ASRConfig {
   resultType: string;
 }
 
+export interface ASRServiceOptions {
+  onVolumeChange?: (rms: number) => void;
+  onSpeakingChange?: (speaking: boolean) => void;
+}
+
+const VAD_SPEECH_THRESHOLD = 0.015;
+const VAD_ONSET_FRAMES = 3;
+const VAD_PREFETCH_SIZE = 2;
+
 export class ASRService {
   private mediaRecorder: MediaRecorder | null = null;
   private audioChunks: Blob[] = [];
@@ -19,47 +26,55 @@ export class ASRService {
   private config: ASRConfig | null = null;
   private onResult: ((text: string) => void) | null = null;
   private sendAudioASR: ((audioData: Uint8Array) => Promise<void>) | null = null;
-  
-  // PCM录音相关
+
   private audioContext: AudioContext | null = null;
   private mediaStreamSource: MediaStreamAudioSourceNode | null = null;
   private scriptProcessor: ScriptProcessorNode | null = null;
+  private workletNode: AudioWorkletNode | null = null;
   private chunkInterval: number | null = null;
   private currentChunk: Uint8Array[] = [];
   private recordedPcmChunks: Uint8Array[] = [];
   private recordedMediaChunks: Blob[] = [];
   private stream: MediaStream | null = null;
-  private lastVoiceAt = 0;
-  private hasVoiceInSegment = false;
-  private segmentSwitching = false;
+  private onVolumeChange: ((rms: number) => void) | null = null;
+  private smoothedRms = 0;
+  private volumeUpdateAt = 0;
 
-  private static readonly SILENCE_RMS_THRESHOLD = 0.012;
-  private static readonly AUTO_SEGMENT_SILENCE_MS = 1200;
+  // Continuous mode / VAD state
+  private isContinuousMode = false;
+  private isSpeaking = false;
+  private vadConsecutiveFrames = 0;
+  private prefetchBuffer: Uint8Array[] = [];
+  private onSpeakingChange: ((speaking: boolean) => void) | null = null;
+  private vadCooldownUntil = 0; // 防抖：发送结束信号后的冷却期，防止立即检测到新语音
+
+  private static readonly VOLUME_UPDATE_INTERVAL_MS = 67; // ~15 Hz
+  private static readonly VAD_COOLDOWN_MS = 500; // 发送结束信号后 500ms 内不检测新语音
 
   constructor() {
     this.audioChunks = [];
     this.isRecording = false;
   }
 
-  // 初始化ASR服务
   initialize(
-    config: ASRConfig, 
+    config: ASRConfig,
     onResult: (text: string) => void,
-    sendAudioASR: (audioData: Uint8Array) => Promise<void>
+    sendAudioASR: (audioData: Uint8Array) => Promise<void>,
+    options?: ASRServiceOptions
   ) {
     this.config = config;
     this.onResult = onResult;
     this.sendAudioASR = sendAudioASR;
+    this.onVolumeChange = options?.onVolumeChange ?? null;
+    this.onSpeakingChange = options?.onSpeakingChange ?? null;
   }
 
-  // 处理服务器返回的ASR结果
   handleASRResult(text: string): void {
     if (this.onResult) {
       this.onResult(text);
     }
   }
 
-  // 检查是否支持录音
   async checkPermission(): Promise<boolean> {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -71,23 +86,25 @@ export class ASRService {
     }
   }
 
-  // 发送ASR开始标识
   private async sendASRStartSignal(): Promise<void> {
     if (this.sendAudioASR) {
-      const startSignal = new Uint8Array([0]); // FirstASR byte = 0 标识开始
+      const startSignal = new Uint8Array([0]);
       await this.sendAudioASR(startSignal);
     }
   }
 
-  // 发送ASR结束标识
   private async sendASREndSignal(): Promise<void> {
     if (this.sendAudioASR) {
-      const endSignal = new Uint8Array([255]); // LastASR byte = 255 标识结束
+      console.info("[ASR] >>> 发送 ASR 结束信号 [255]（本段语音结束，非对话结束）");
+      const endSignal = new Uint8Array([255]);
       await this.sendAudioASR(endSignal);
     }
   }
 
-  // 开始录音
+  // -----------------------------------------------------------------------
+  // Legacy single-shot recording (kept for non-continuous callers)
+  // -----------------------------------------------------------------------
+
   async startRecording(): Promise<boolean> {
     if (!this.config) {
       console.error("ASR服务未初始化");
@@ -100,13 +117,13 @@ export class ASRService {
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           sampleRate: this.config.rate,
           channelCount: this.config.channels,
           echoCancellation: true,
           noiseSuppression: true,
-        } 
+        }
       });
 
       this.audioChunks = [];
@@ -115,14 +132,11 @@ export class ASRService {
       this.recordedMediaChunks = [];
       this.stream = stream;
       this.isRecording = true;
-      this.lastVoiceAt = Date.now();
-      this.hasVoiceInSegment = false;
-      this.segmentSwitching = false;
+      this.smoothedRms = 0;
+      this.volumeUpdateAt = 0;
 
-      // 先通知后端开启ASR段，再启动分包发送，确保时序正确
       await this.sendASRStartSignal();
 
-      // 根据配置选择录音方式
       if (this.config.format.toLowerCase() === 'pcm') {
         await this.startPCMRecording(stream);
       } else {
@@ -130,7 +144,6 @@ export class ASRService {
       }
 
       return true;
-
     } catch (error) {
       console.error("开始录音失败:", error);
       this.isRecording = false;
@@ -138,12 +151,15 @@ export class ASRService {
     }
   }
 
-  // 停止录音
   async stopRecording(): Promise<void> {
+    if (this.isContinuousMode) {
+      await this.stopContinuousRecording();
+      return;
+    }
+
     if (this.isRecording) {
       this.isRecording = false;
-      this.segmentSwitching = false;
-      
+
       if (this.config?.format.toLowerCase() === 'pcm') {
         await this.stopPCMRecording();
         await this.sendASREndSignal();
@@ -158,62 +174,314 @@ export class ASRService {
         this.stream = null;
       }
 
-      // 停止后回放本次录音，便于快速验证采集链路是否正常
+      this.onVolumeChange?.(0);
+
       if (CONFIG.PLAY_LOCAL_RECORDING && this.config?.format.toLowerCase() === "pcm") {
         this.playRecordedPCM();
       }
     }
   }
 
-  // 启动PCM录音
+  // -----------------------------------------------------------------------
+  // Continuous mode – mic stays open, VAD gates audio sending
+  // -----------------------------------------------------------------------
+
+  async startContinuousRecording(): Promise<boolean> {
+    if (!this.config) {
+      console.error("ASR服务未初始化");
+      return false;
+    }
+
+    if (this.isRecording) {
+      console.warn("已在录音中");
+      return false;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate: this.config.rate,
+          channelCount: this.config.channels,
+          echoCancellation: true,
+          noiseSuppression: true,
+        }
+      });
+
+      this.audioChunks = [];
+      this.currentChunk = [];
+      this.recordedPcmChunks = [];
+      this.recordedMediaChunks = [];
+      this.prefetchBuffer = [];
+      this.stream = stream;
+      this.isRecording = true;
+      this.isContinuousMode = true;
+      this.isSpeaking = false;
+      this.vadConsecutiveFrames = 0;
+      this.smoothedRms = 0;
+      this.volumeUpdateAt = 0;
+
+      if (this.config.format.toLowerCase() === 'pcm') {
+        await this.startPCMRecording(stream);
+      } else {
+        await this.startMediaRecorderRecording(stream);
+      }
+
+      console.info("[ASR] Continuous mode started, VAD listening");
+      return true;
+    } catch (error) {
+      console.error("开始连续录音失败:", error);
+      this.isRecording = false;
+      this.isContinuousMode = false;
+      return false;
+    }
+  }
+
+  async stopContinuousRecording(): Promise<void> {
+    if (!this.isRecording) return;
+    
+    console.info("[ASR] 停止连续录音，isSpeaking=", this.isSpeaking);
+
+    // 用户手动停止时，如果正在说话，需要发送结束信号
+    if (this.isSpeaking) {
+      if (this.currentChunk.length > 0) {
+        await this.sendPCMChunk();
+      }
+      console.info("[ASR] 用户手动停止，发送结束信号");
+      await this.sendASREndSignal();
+      this.isSpeaking = false;
+      this.onSpeakingChange?.(false);
+    }
+
+    this.isRecording = false;
+    this.isContinuousMode = false;
+    this.vadConsecutiveFrames = 0;
+    this.prefetchBuffer = [];
+
+    if (this.config?.format.toLowerCase() === 'pcm') {
+      await this.stopPCMRecording();
+    } else if (this.mediaRecorder) {
+      this.mediaRecorder.stop();
+    }
+
+    if (this.stream) {
+      this.stream.getTracks().forEach(track => track.stop());
+      this.stream = null;
+    }
+
+    this.onVolumeChange?.(0);
+    console.info("[ASR] 连续模式已停止，麦克风已关闭");
+  }
+
+  /**
+   * Called when backend sends ASRStop (type 4): 后端检测到800ms静音.
+   * 直接发送ASR结束信号，重置到 VAD 监听状态等待用户再次说话.
+   * 注意：这只是一段语音的结束，不是整个对话的结束，麦克风仍然开着.
+   */
+  async handleServerStop(): Promise<void> {
+    console.info("[ASR] <<< 收到后端 ASRStop (800ms静音)，isContinuousMode=", this.isContinuousMode, "isSpeaking=", this.isSpeaking);
+    
+    if (!this.isContinuousMode) {
+      console.info("[ASR] 非连续模式，忽略");
+      return;
+    }
+
+    // 先停止 chunking 定时器，防止后续再发送数据
+    this.stopChunking();
+
+    // 立即将 isSpeaking 设为 false，防止新的音频数据进入 currentChunk
+    const wasSpeak = this.isSpeaking;
+    this.isSpeaking = false;
+
+    // 直接发送 ASR 结束信号，不再发送剩余音频
+    if (wasSpeak) {
+      await this.sendASREndSignal();
+    }
+
+    // 设置 VAD 冷却期，防止发送结束信号后立即检测到新语音（例如回声或噪音）
+    this.vadCooldownUntil = performance.now() + ASRService.VAD_COOLDOWN_MS;
+
+    // 重置状态，继续 VAD 监听，等待用户再次说话
+    this.vadConsecutiveFrames = 0;
+    this.prefetchBuffer = [];
+    this.currentChunk = [];
+    this.onSpeakingChange?.(false);
+
+    console.info("[ASR] ASR 结束信号已发送，回到 VAD 监听，等待用户再次说话");
+  }
+
+  getSpeakingState(): boolean {
+    return this.isSpeaking;
+  }
+
+  getContinuousMode(): boolean {
+    return this.isContinuousMode;
+  }
+
+  // -----------------------------------------------------------------------
+  // PCM recording – AudioWorklet with ScriptProcessorNode fallback
+  // -----------------------------------------------------------------------
+
   private async startPCMRecording(stream: MediaStream): Promise<void> {
     try {
-      this.audioContext = new AudioContext({ sampleRate: this.config!.rate });
-      this.mediaStreamSource = this.audioContext.createMediaStreamSource(stream);
-      
-      // 创建ScriptProcessorNode来获取原始PCM数据
-      this.scriptProcessor = this.audioContext.createScriptProcessor(4096, 1, 1);
-      
-      this.scriptProcessor.onaudioprocess = (event) => {
+      const audioCtx = new AudioContext({ sampleRate: this.config!.rate });
+      this.audioContext = audioCtx;
+
+      if (audioCtx.state === "suspended") {
+        await audioCtx.resume();
+      }
+
+      console.info("[ASR] AudioContext state:", audioCtx.state, "sampleRate:", audioCtx.sampleRate);
+
+      const source = audioCtx.createMediaStreamSource(stream);
+      this.mediaStreamSource = source;
+
+      const tracks = stream.getAudioTracks();
+      console.info("[ASR] Audio tracks:", tracks.length, tracks.map(t => `${t.label} enabled=${t.enabled} muted=${t.muted}`));
+
+      let workletLoaded = false;
+      try {
+        const base = import.meta.env.BASE_URL || '/';
+        await audioCtx.audioWorklet.addModule(`${base}pcm-worklet-processor.js`);
+
         if (!this.isRecording) return;
-        
-        const inputBuffer = event.inputBuffer;
-        const inputData = inputBuffer.getChannelData(0);
-        let sumSquares = 0;
-        for (let i = 0; i < inputData.length; i++) {
-          sumSquares += inputData[i] * inputData[i];
-        }
-        const rms = Math.sqrt(sumSquares / inputData.length);
-        if (rms >= ASRService.SILENCE_RMS_THRESHOLD) {
-          this.lastVoiceAt = Date.now();
-          this.hasVoiceInSegment = true;
+
+        if (audioCtx.state === "suspended") {
+          await audioCtx.resume();
         }
 
-        // 将Float32Array转换为Int16Array (16位PCM)
-        const pcmData = new Int16Array(inputData.length);
-        for (let i = 0; i < inputData.length; i++) {
-          pcmData[i] = Math.max(-32768, Math.min(32767, inputData[i] * 32768));
-        }
-        
-        // 转换为Uint8Array
-        const uint8Array = new Uint8Array(pcmData.buffer);
-        this.currentChunk.push(uint8Array);
-      };
-      
-      // 连接音频节点
-      this.mediaStreamSource.connect(this.scriptProcessor);
-      this.scriptProcessor.connect(this.audioContext.destination);
-      
-      // 启动200ms分包定时器
-      this.startChunking();
-      
+        this.workletNode = new AudioWorkletNode(audioCtx, 'pcm-worklet-processor');
+
+        this.workletNode.port.onmessage = (event: MessageEvent) => {
+          if (!this.isRecording) return;
+          const { pcmData, rms } = event.data as { pcmData: Uint8Array; rms: number };
+          this.handleAudioData(new Uint8Array(pcmData), rms);
+        };
+
+        source.connect(this.workletNode);
+        this.workletNode.connect(audioCtx.destination);
+        workletLoaded = true;
+        console.info("[ASR] AudioWorklet loaded and connected");
+      } catch (e) {
+        console.warn('[ASR] AudioWorklet unavailable, falling back to ScriptProcessor', e);
+      }
+
+      if (!this.isRecording) return;
+
+      if (!workletLoaded) {
+        this.setupScriptProcessorFallback(audioCtx, source);
+        console.info("[ASR] ScriptProcessor fallback connected");
+      }
+
+      // In continuous mode, chunking is started on-demand when VAD detects speech
+      if (!this.isContinuousMode) {
+        this.startChunking();
+      }
     } catch (error) {
       console.error("启动PCM录音失败:", error);
       throw error;
     }
   }
 
-  // 启动MediaRecorder录音（兼容其他格式）
+  private setupScriptProcessorFallback(
+    audioCtx: AudioContext,
+    source: MediaStreamAudioSourceNode
+  ): void {
+    this.scriptProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
+
+    this.scriptProcessor.onaudioprocess = (event) => {
+      if (!this.isRecording) return;
+
+      const inputData = event.inputBuffer.getChannelData(0);
+      let sumSquares = 0;
+      for (let i = 0; i < inputData.length; i++) {
+        sumSquares += inputData[i] * inputData[i];
+      }
+      const rms = Math.sqrt(sumSquares / inputData.length);
+
+      const pcmData = new Int16Array(inputData.length);
+      for (let i = 0; i < inputData.length; i++) {
+        pcmData[i] = Math.max(-32768, Math.min(32767, inputData[i] * 32768));
+      }
+
+      this.handleAudioData(new Uint8Array(pcmData.buffer), rms);
+    };
+
+    source.connect(this.scriptProcessor);
+    this.scriptProcessor.connect(audioCtx.destination);
+  }
+
+  private handleAudioData(pcmData: Uint8Array, rms: number): void {
+    this.smoothedRms = this.smoothedRms * 0.7 + rms * 0.3;
+    const now = performance.now();
+    if (now - this.volumeUpdateAt >= ASRService.VOLUME_UPDATE_INTERVAL_MS) {
+      this.volumeUpdateAt = now;
+      this.onVolumeChange?.(this.smoothedRms);
+    }
+
+    if (this.isContinuousMode) {
+      if (!this.isSpeaking) {
+        // VAD listening: buffer audio and watch for speech onset
+        this.prefetchBuffer.push(new Uint8Array(pcmData));
+        if (this.prefetchBuffer.length > VAD_PREFETCH_SIZE) {
+          this.prefetchBuffer.shift();
+        }
+
+        // 检查是否在冷却期内（发送结束信号后的短时间内不检测新语音）
+        if (now < this.vadCooldownUntil) {
+          this.vadConsecutiveFrames = 0;
+          return;
+        }
+
+        if (this.smoothedRms >= VAD_SPEECH_THRESHOLD) {
+          this.vadConsecutiveFrames++;
+          if (this.vadConsecutiveFrames >= VAD_ONSET_FRAMES) {
+            void this.transitionToSpeaking();
+          }
+        } else {
+          this.vadConsecutiveFrames = 0;
+        }
+        return;
+      }
+
+      // Speaking: accumulate for chunked sending
+      this.currentChunk.push(pcmData);
+      return;
+    }
+
+    // Legacy (non-continuous) path
+    this.currentChunk.push(pcmData);
+  }
+
+  /**
+   * VAD 检测到语音开始（静音→说话）: 发送开始信号，开始发送音频.
+   * 前端只负责"开始"检测，"结束"由后端负责.
+   */
+  private async transitionToSpeaking(): Promise<void> {
+    console.info("[ASR] VAD 检测到用户开始说话（静音→说话）");
+    
+    this.isSpeaking = true;
+    this.vadConsecutiveFrames = 0;
+
+    // 发送开始信号
+    console.info("[ASR] >>> 发送开始信号 [0]");
+    await this.sendASRStartSignal();
+
+    // Flush pre-buffered audio so the beginning of speech isn't lost
+    if (this.prefetchBuffer.length > 0) {
+      for (const chunk of this.prefetchBuffer) {
+        this.currentChunk.push(chunk);
+      }
+      this.prefetchBuffer = [];
+    }
+
+    this.startChunking();
+    this.onSpeakingChange?.(true);
+  }
+
+  // -----------------------------------------------------------------------
+  // MediaRecorder recording (non-PCM formats)
+  // -----------------------------------------------------------------------
+
   private async startMediaRecorderRecording(stream: MediaStream): Promise<void> {
     this.mediaRecorder = new MediaRecorder(stream, {
       mimeType: this.getMimeType(),
@@ -223,7 +491,9 @@ export class ASRService {
       if (event.data.size > 0) {
         this.audioChunks.push(event.data);
         this.recordedMediaChunks.push(event.data);
-        this.sendAudioChunkDirectly(event.data);
+        if (!this.isContinuousMode || this.isSpeaking) {
+          this.sendAudioChunkDirectly(event.data);
+        }
       }
     };
 
@@ -238,112 +508,96 @@ export class ASRService {
     this.mediaRecorder.start(200);
   }
 
-  // 停止PCM录音
+  // -----------------------------------------------------------------------
+  // Stop / chunking / segment rotation
+  // -----------------------------------------------------------------------
+
   private async stopPCMRecording(): Promise<void> {
     if (this.chunkInterval) {
       clearInterval(this.chunkInterval);
       this.chunkInterval = null;
     }
-    
+
+    if (this.workletNode) {
+      this.workletNode.disconnect();
+      this.workletNode = null;
+    }
+
     if (this.scriptProcessor) {
       this.scriptProcessor.disconnect();
       this.scriptProcessor = null;
     }
-    
+
     if (this.mediaStreamSource) {
       this.mediaStreamSource.disconnect();
       this.mediaStreamSource = null;
     }
-    
+
     if (this.audioContext) {
       this.audioContext.close();
       this.audioContext = null;
     }
-    
-    // 发送最后一个音频块
+
     if (this.currentChunk.length > 0) {
       await this.sendPCMChunk();
     }
   }
 
-  // 启动200ms分包定时器
   private startChunking(): void {
+    if (this.chunkInterval) {
+      clearInterval(this.chunkInterval);
+    }
+
     this.chunkInterval = window.setInterval(() => {
       if (!this.isRecording) {
+        return;
+      }
+
+      // In continuous mode, only send chunks while speaking
+      if (this.isContinuousMode && !this.isSpeaking) {
         return;
       }
 
       if (this.currentChunk.length > 0) {
         void this.sendPCMChunk();
       }
-
-      const silentFor = Date.now() - this.lastVoiceAt;
-      if (
-        this.config?.resultType?.toLowerCase() !== "single" &&
-        this.hasVoiceInSegment &&
-        !this.segmentSwitching &&
-        silentFor >= ASRService.AUTO_SEGMENT_SILENCE_MS
-      ) {
-        void this.rotateASRSegment();
-      }
     }, 200);
   }
 
-  // 静音分段：不停止录音，仅结束上一轮ASR并开启下一轮
-  private async rotateASRSegment(): Promise<void> {
-    if (!this.isRecording || this.segmentSwitching) {
-      return;
-    }
-    this.segmentSwitching = true;
-    try {
-      if (this.currentChunk.length > 0) {
-        await this.sendPCMChunk();
-      }
-      await this.sendASREndSignal();
-      if (!this.isRecording) {
-        return;
-      }
-      await this.sendASRStartSignal();
-      this.hasVoiceInSegment = false;
-      this.lastVoiceAt = Date.now();
-    } catch (error) {
-      console.error("切换ASR分段失败:", error);
-    } finally {
-      this.segmentSwitching = false;
+  private stopChunking(): void {
+    if (this.chunkInterval) {
+      clearInterval(this.chunkInterval);
+      this.chunkInterval = null;
     }
   }
 
-  // 发送PCM音频块
+  // -----------------------------------------------------------------------
+  // Audio data transmission
+  // -----------------------------------------------------------------------
+
   private async sendPCMChunk(): Promise<void> {
     if (this.currentChunk.length === 0 || !this.sendAudioASR) {
       return;
     }
 
     try {
-      // 合并所有PCM数据
       const totalLength = this.currentChunk.reduce((sum, chunk) => sum + chunk.length, 0);
       const mergedData = new Uint8Array(totalLength);
       let offset = 0;
-      
+
       for (const chunk of this.currentChunk) {
         mergedData.set(chunk, offset);
         offset += chunk.length;
       }
-      
-      // 发送音频块到服务器
-      await this.sendAudioASR(mergedData);
 
-      // 额外保存一份本地录音，用于结束后回放
+      await this.sendAudioASR(mergedData);
       this.recordedPcmChunks.push(new Uint8Array(mergedData));
-      
-      // 清空当前块
       this.currentChunk = [];
     } catch (error) {
       console.error("发送PCM音频块失败:", error);
     }
   }
 
-  // 直接发送音频块（由MediaRecorder的timeslice触发）
   private async sendAudioChunkDirectly(audioBlob: Blob): Promise<void> {
     if (!this.sendAudioASR) {
       return;
@@ -352,20 +606,21 @@ export class ASRService {
     try {
       const arrayBuffer = await audioBlob.arrayBuffer();
       const uint8Array = new Uint8Array(arrayBuffer);
-
-      // 发送音频块到服务器
       await this.sendAudioASR(uint8Array);
     } catch (error) {
       console.error("发送音频块失败:", error);
     }
   }
 
-  // 获取MIME类型
+  // -----------------------------------------------------------------------
+  // Utilities
+  // -----------------------------------------------------------------------
+
   private getMimeType(): string {
     if (!this.config) return "audio/webm";
 
     const { format, codec } = this.config;
-    
+
     switch (format.toLowerCase()) {
       case "webm":
         return `audio/webm;codecs=${codec}`;
@@ -378,9 +633,7 @@ export class ASRService {
     }
   }
 
-  // 处理录音数据
   private async processAudio(): Promise<void> {
-    // 发送ASR结束标识
     if (this.sendAudioASR) {
       await this.sendASREndSignal();
     } else {
@@ -478,38 +731,40 @@ export class ASRService {
     return new Blob([wavBuffer], { type: "audio/wav" });
   }
 
-  // 获取录音状态
   getRecordingState(): boolean {
     return this.isRecording;
   }
 
-  // 销毁服务
   destroy(): void {
     if (this.isRecording) {
       this.stopRecording();
     }
-    
+
     if (this.mediaRecorder) {
       this.mediaRecorder.stop();
       this.mediaRecorder = null;
     }
-    
-    // 清理PCM资源
+
+    if (this.workletNode) {
+      this.workletNode.disconnect();
+      this.workletNode = null;
+    }
+
     if (this.scriptProcessor) {
       this.scriptProcessor.disconnect();
       this.scriptProcessor = null;
     }
-    
+
     if (this.mediaStreamSource) {
       this.mediaStreamSource.disconnect();
       this.mediaStreamSource = null;
     }
-    
+
     if (this.audioContext) {
       this.audioContext.close();
       this.audioContext = null;
     }
-    
+
     if (this.chunkInterval) {
       clearInterval(this.chunkInterval);
       this.chunkInterval = null;
@@ -519,12 +774,18 @@ export class ASRService {
       this.stream.getTracks().forEach(track => track.stop());
       this.stream = null;
     }
-    
+
     this.audioChunks = [];
     this.currentChunk = [];
+    this.prefetchBuffer = [];
     this.isRecording = false;
+    this.isContinuousMode = false;
+    this.isSpeaking = false;
+    this.vadConsecutiveFrames = 0;
     this.config = null;
     this.onResult = null;
     this.sendAudioASR = null;
+    this.onVolumeChange = null;
+    this.onSpeakingChange = null;
   }
 }

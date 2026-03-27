@@ -61,7 +61,7 @@ export function useVoiceRecording({
   }, [getRecordingState, isRecording]);
 
   useEffect(() => {
-    if (!enabled || !isRecording) {
+    if (!isRecording || enabled) {
       return;
     }
     void stopRecording();

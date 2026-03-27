@@ -63,6 +63,8 @@ export function useConversationRecords(options?: UseConversationRecordsOptions) 
   const { autoSelectFirst = true } = options ?? {};
   const listRequestIdRef = useRef(0);
   const historyRequestIdRef = useRef(0);
+  const listLoadingLockRef = useRef(false);
+  const historyLoadingLockRef = useRef(false);
 
   const store = useConversationStore();
   const {
@@ -94,6 +96,7 @@ export function useConversationRecords(options?: UseConversationRecordsOptions) 
     async (conversationId: string, page: number, append: boolean) => {
       const requestId = historyRequestIdRef.current + 1;
       historyRequestIdRef.current = requestId;
+      historyLoadingLockRef.current = true;
       setHistoryLoading(true);
       setHistoryError(null);
 
@@ -128,6 +131,7 @@ export function useConversationRecords(options?: UseConversationRecordsOptions) 
       } finally {
         if (requestId === historyRequestIdRef.current) {
           setHistoryLoading(false);
+          historyLoadingLockRef.current = false;
         }
       }
     },
@@ -147,6 +151,7 @@ export function useConversationRecords(options?: UseConversationRecordsOptions) 
       setHistoryConversationId(conversationId);
       setMessageList([]);
       setHistoryPagination(DEFAULT_PAGINATION);
+      historyLoadingLockRef.current = false;
       await loadConversationHistoryPage(conversationId, 1, false);
     },
     [
@@ -162,6 +167,7 @@ export function useConversationRecords(options?: UseConversationRecordsOptions) 
     async (page: number, append: boolean) => {
       const requestId = listRequestIdRef.current + 1;
       listRequestIdRef.current = requestId;
+      listLoadingLockRef.current = true;
       setListLoading(true);
       setListError(null);
 
@@ -204,6 +210,7 @@ export function useConversationRecords(options?: UseConversationRecordsOptions) 
       } finally {
         if (requestId === listRequestIdRef.current) {
           setListLoading(false);
+          listLoadingLockRef.current = false;
         }
       }
     },
@@ -222,28 +229,27 @@ export function useConversationRecords(options?: UseConversationRecordsOptions) 
   );
 
   const refreshConversationList = useCallback(async () => {
+    listLoadingLockRef.current = false;
     await loadConversationListPage(1, false);
   }, [loadConversationListPage]);
 
   const loadMoreConversationList = useCallback(async () => {
-    if (isListLoading || !listPagination.hasNext) {
-      return;
-    }
-    await loadConversationListPage(listPagination.page + 1, true);
-  }, [isListLoading, listPagination.hasNext, listPagination.page, loadConversationListPage]);
+    if (listLoadingLockRef.current) return;
+    const { listPagination: pag } = useConversationStore.getState();
+    if (!pag.hasNext) return;
+    await loadConversationListPage(pag.page + 1, true);
+  }, [loadConversationListPage]);
 
   const loadMoreHistory = useCallback(async () => {
-    if (!selectedConversationId || isHistoryLoading || !historyPagination.hasNext) {
-      return;
-    }
-    await loadConversationHistoryPage(selectedConversationId, historyPagination.page + 1, true);
-  }, [
-    historyPagination.hasNext,
-    historyPagination.page,
-    isHistoryLoading,
-    loadConversationHistoryPage,
-    selectedConversationId,
-  ]);
+    if (historyLoadingLockRef.current) return;
+    const state = useConversationStore.getState();
+    if (!state.selectedConversationId || !state.historyPagination.hasNext) return;
+    await loadConversationHistoryPage(
+      state.selectedConversationId,
+      state.historyPagination.page + 1,
+      true
+    );
+  }, [loadConversationHistoryPage]);
 
   const createNewConversation = useCallback(async () => {
     const response = await createConversation();

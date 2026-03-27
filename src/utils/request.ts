@@ -14,9 +14,24 @@ interface ApiResponse {
 }
 //Axios实例
 const service: AxiosInstance = axios.create({
-  baseURL: "/api",
+  baseURL: "https://api.xhpolaris.com/psych",
   timeout: 5000,
 });
+
+// 从 auth-storage（zustand persist）或 chat_token 获取 token，用于 conversation 等需鉴权的接口
+function getAuthToken(): string | null {
+  try {
+    const raw = localStorage.getItem("auth-storage");
+    if (raw) {
+      const parsed = JSON.parse(raw) as { state?: { token?: string } };
+      const token = parsed?.state?.token;
+      if (token) return token;
+    }
+  } catch {
+    // ignore parse error
+  }
+  return localStorage.getItem("chat_token");
+}
 
 //请求拦截器
 service.interceptors.request.use(
@@ -24,7 +39,10 @@ service.interceptors.request.use(
     //发送请求前的处理>
     config.headers["X-Xh-Env"] = "test";
     if (config.headers) {
-      config.headers["Authorization"] = localStorage.getItem('chat_token');
+      const token = getAuthToken();
+      if (token) {
+        config.headers["Authorization"] = token;
+      }
     }
     return config;
   },
