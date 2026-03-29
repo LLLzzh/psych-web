@@ -92,6 +92,7 @@ export const CmdType = {
   Text: 1,
   Audio: 2,
   AudioASR: 3,
+  Interrupt: 5,
 } as const;
 
 export type CmdType = typeof CmdType[keyof typeof CmdType];
@@ -109,6 +110,7 @@ export const RespType = {
   ModelAudio: 2,  // 模型音频输出
   UserText: 3,    // 用户语音识别结果
   ASRStop: 4,     // 后端检测到静音，前端应发送ASR结束包
+  Interrupt: 5,   // 后端中断确认响应
 } as const;
 
 export type RespType = typeof RespType[keyof typeof RespType];

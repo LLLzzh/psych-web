@@ -4,7 +4,6 @@ import { useTestRecording } from "../hooks/useTestRecording";
 import { useConfigStore } from "../store/configStore";
 import { useChatStore } from "../store/chatStore";
 import { useEffect, useRef, useState } from "react";
-import { message } from "antd";
 import microphoneIcon from "../assets/microphone.svg";
 import sendIcon from "../assets/send.svg";
 import { CONFIG } from "../config";
@@ -12,8 +11,6 @@ import { CONFIG } from "../config";
 
 
 interface InputAreaProps {
-  isConnected: boolean;
-  isAuthenticated: boolean;
   onSendText: (text: string) => void;
   onStartASR: () => Promise<boolean>;
   onStopASR: () => Promise<void>;
@@ -24,8 +21,6 @@ interface InputAreaProps {
 }
 
 export function InputArea({
-  isConnected,
-  isAuthenticated,
   onSendText,
   onStartASR,
   onStopASR,
@@ -34,8 +29,6 @@ export function InputArea({
   enterVoiceModeSignal,
   onVoiceModeChange,
 }: InputAreaProps) {
-  const isEnabled = isConnected && isAuthenticated;
-  const allowActions = isEnabled || CONFIG.USE_MOCK;
   const { theme } = useConfigStore();
   const volumeLevel = useChatStore((state) => state.volumeLevel);
   const isSpeaking = useChatStore((state) => state.isSpeaking);
@@ -57,25 +50,17 @@ export function InputArea({
     onStartRecording: onStartASR,
     onStopRecording: onStopASR,
     getRecordingState: onGetASRState,
-    enabled: allowActions,
+    enabled: true,
   });
 
   const { isRecording: isTestRecording, toggleRecording: toggleTestRecording } = useTestRecording();
 
   const handleEnterVoiceMode = () => {
-    if (!allowActions) {
-      message.warning("连接未建立，无法录音");
-      return;
-    }
     setInputMode("voice");
     onVoiceModeChange?.(true);
   };
 
   const handleToggleRecording = async () => {
-    if (!allowActions) {
-      message.warning("连接未建立，无法录音");
-      return;
-    }
     if (isRecording) {
       await stopRecording();
     } else {
@@ -84,10 +69,6 @@ export function InputArea({
   };
 
   const handleSendClick = async () => {
-    if (!allowActions) {
-      message.warning("连接未建立，无法发送");
-      return;
-    }
     await handleSend();
   };
 
@@ -97,14 +78,6 @@ export function InputArea({
       void handleSendClick();
     }
   };
-
-  useEffect(() => {
-    if (inputMode !== "voice" || allowActions) {
-      return;
-    }
-    setInputMode("text");
-    onVoiceModeChange?.(false);
-  }, [allowActions, inputMode, onVoiceModeChange]);
 
   useEffect(() => {
     if (endConversationSignal === lastEndConversationSignalRef.current) {

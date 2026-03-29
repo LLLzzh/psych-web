@@ -154,6 +154,15 @@ export class Handler {
     });
   }
 
+  // 创建打断命令
+  createInterruptCmd(id: number): ArrayBuffer | null {
+    return this.createCmdMessage({
+      id,
+      command: 5, // CmdType.Interrupt
+      content: "",
+    });
+  }
+
   // 创建ping消息
   createPingMessage(): ArrayBuffer | null {
     if (!this.meta) {

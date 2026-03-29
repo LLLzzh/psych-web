@@ -169,6 +169,15 @@ export class Engine {
     }
   }
 
+  // 发送打断消息
+  async sendInterruptMessage(id: number): Promise<void> {
+    const buffer = this.handler.createInterruptCmd(id);
+    if (buffer) {
+      console.info("send interrupt", { id, cType: 5 });
+      await this.sendBinary(buffer);
+    }
+  }
+
   private startHeartbeat() {
     this.stopHeartbeat();
     this.heartbeatTimer = window.setInterval(() => {

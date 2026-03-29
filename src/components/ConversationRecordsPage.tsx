@@ -90,7 +90,7 @@ function ConversationRecordsPage() {
               <button
                 type="button"
                 onClick={handleToggleTheme}
-                className={`flex items-center justify-center w-9 h-9 rounded-[10px] transition-all ${
+                className={`hidden md:flex items-center justify-center w-9 h-9 rounded-[10px] transition-all ${
                   theme === "light"
                     ? "bg-white/60 text-[#3C4A6B] hover:bg-white/80"
                     : "bg-white/10 text-white hover:bg-white/20"

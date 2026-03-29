@@ -12,6 +12,7 @@ interface SidebarActionButtonProps {
   className: string;
   theme: ButtonTheme;
   variant: ButtonVariant;
+  disabled?: boolean;
 }
 
 export function SidebarActionButton({
@@ -21,6 +22,7 @@ export function SidebarActionButton({
   className,
   theme,
   variant,
+  disabled = false,
 }: SidebarActionButtonProps) {
   const iconSrc = variant === "red" ? endIcon : theme === "light" ? recordsLightIcon : recordsDarkIcon;
   const themeClassName =
@@ -34,7 +36,14 @@ export function SidebarActionButton({
 
 
   return (
-    <button onClick={onClick} className={`hover:scale-105 mx-3 flex items-center justify-center py-3 rounded-full transition-all duration-200 ${className} ${themeClassName}`} type="button">
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`mx-3 flex items-center justify-center py-3 rounded-full transition-all duration-200 ${className} ${themeClassName} ${
+        disabled ? "cursor-not-allowed opacity-60" : "hover:scale-105"
+      }`}
+      type="button"
+    >
         <div className="flex mx-auto gap-2">
           <img src={iconSrc} alt={label} className={`w-6 h-6`} />
       {!collapsed && <span className="text-l">{label}</span>}

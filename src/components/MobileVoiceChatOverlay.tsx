@@ -19,7 +19,7 @@ interface MobileVoiceChatOverlayProps {
   isVisible: boolean;
   onClose: () => void;
   onViewConversationRecords: () => void;
-  onToggleTheme: () => void;
+  onSwitchToChatMode: () => void;
   isSpeaking: boolean;
   onStartASR: () => Promise<boolean>;
   onStopASR: () => Promise<void>;
@@ -30,7 +30,7 @@ export function MobileVoiceChatOverlay({
   isVisible,
   onClose,
   onViewConversationRecords,
-  onToggleTheme,
+  onSwitchToChatMode,
   isSpeaking: externalIsSpeaking,
   onStartASR,
   onStopASR,
@@ -237,13 +237,13 @@ export function MobileVoiceChatOverlay({
 
             <button
               type="button"
-              onClick={onToggleTheme}
+              onClick={onSwitchToChatMode}
               className="flex flex-col items-center gap-1.5"
             >
               <div className="w-12.5 h-12.5 bg-[rgba(0,0,0,0.35)] rounded-full flex items-center justify-center shadow-[0px_11.4894px_15.3191px_-3.82979px_rgba(28,25,23,0.08),0px_3.82979px_5.74468px_-1.91489px_rgba(28,25,23,0.03)]">
                 <img src={switchIcon} alt="" className="w-5 h-5 object-contain" />
               </div>
-              <span className="text-white text-[11px]">模式切换</span>
+              <span className="text-white text-[11px]">对话模式</span>
             </button>
           </div>
         </div>

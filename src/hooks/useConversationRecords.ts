@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
 import {
-  createConversation,
   getConversationHistory,
   getConversationList,
 } from "../apis/conversation";
@@ -251,14 +250,6 @@ export function useConversationRecords(options?: UseConversationRecordsOptions) 
     );
   }, [loadConversationHistoryPage]);
 
-  const createNewConversation = useCallback(async () => {
-    const response = await createConversation();
-    await refreshConversationList();
-    if (response.conversationId) {
-      await selectConversation(response.conversationId);
-    }
-  }, [refreshConversationList, selectConversation]);
-
   useEffect(() => {
     if (!listInitialized) {
       void refreshConversationList();
@@ -279,6 +270,5 @@ export function useConversationRecords(options?: UseConversationRecordsOptions) 
     loadMoreConversationList,
     selectConversation,
     loadMoreHistory,
-    createNewConversation,
   };
 }

@@ -5,6 +5,8 @@ import sidebarIcon from "../assets/sidebar.png";
 
 interface SidebarMobileHeaderProps {
   onEnterVoiceMode: () => void;
+  hasConversationStarted: boolean;
+  isConnecting: boolean;
   onEndConversation: () => void;
   onViewConversationRecords: () => void;
   onLogout: () => void;
@@ -12,19 +14,29 @@ interface SidebarMobileHeaderProps {
 
 export function SidebarMobileHeader({
   onEnterVoiceMode,
+  hasConversationStarted,
+  isConnecting,
   onEndConversation,
   onViewConversationRecords,
   onLogout,
 }: SidebarMobileHeaderProps) {
+  const conversationTitle = isConnecting
+    ? "连接中..."
+    : "结束对话";
+
   return (
     <div className="w-full flex items-center justify-between md:hidden">
       <div className="flex items-center gap-4">
       <button
           type="button"
           onClick={onEndConversation}
-          className="px-3 h-10 w-10 rounded-full text-[12px] text-white bg-[rgba(0,0,0,0.25)]"
+          disabled={!hasConversationStarted}
+          className={`px-3 h-10 w-10 rounded-full text-[12px] text-white bg-[rgba(0,0,0,0.25)] ${
+            !hasConversationStarted ? "opacity-50 cursor-not-allowed" : ""
+          }`}
+          title={conversationTitle}
         >
-          <img src={sidebarIcon} alt="结束对话" className="w-6" />
+          <img src={sidebarIcon} alt={conversationTitle} className="w-6" />
         </button>
         <button
           type="button"

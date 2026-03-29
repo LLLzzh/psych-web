@@ -23,6 +23,7 @@ export interface UserInfo {
     userId: string;
     unitId: string;
     studentId: string;
+    conversationId?: string;
 }
 
 export interface UserInfoResponse {

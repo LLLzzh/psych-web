@@ -3,14 +3,22 @@ import { Engine } from "../engine/Engine";
 import { useConfigStore } from "../store/configStore";
 import { useChatStore, handleResponse, stopTTSPlayback } from "../store/chatStore";
 import { type AuthPayload, AuthType } from "../protocol/auth";
-import { RespType } from "../protocol/message";
+import { getRespContentData, RespType } from "../protocol/message";
 import type { UserInfo } from "../apis/login";
 import { ASRService } from "../services/ASRService";
 import { CONFIG } from "../config";
 
-export function useChat(url: string, userId: string, token: string, info: UserInfo) {
+export function useChat(
+  url: string,
+  userId: string,
+  token: string,
+  info: UserInfo,
+  enabled = true
+) {
   const engineRef = useRef<Engine | null>(null);
   const asrServiceRef = useRef<ASRService | null>(null);
+  const hasSentInterruptForCurrentSpeechRef = useRef(false);
+  const isInterruptPendingRef = useRef(false);
 
   const setConfig = useConfigStore((state) => state.setConfig);
   const {
@@ -22,12 +30,16 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
     isAuthenticated,
   } = useChatStore();
 
-  const memoizedInfo = useMemo(() => info, [info.userId, info.unitId, info.studentId]);
+  const memoizedInfo = useMemo(
+    () => info,
+    [info]
+  );
 
   // Ref-based callbacks: updated every render, so closures in useEffect / ASR
   // service always reach the latest implementation without stale captures.
   const sendTextRef = useRef<(text: string) => Promise<boolean>>(() => Promise.resolve(false));
   sendTextRef.current = async (text: string): Promise<boolean> => {
+    if (!enabled) return false;
     if (CONFIG.USE_MOCK) return true;
     const engine = engineRef.current;
     if (!engine?.isSocketOpen()) {
@@ -41,21 +53,41 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
 
   const sendAudioASRRef = useRef<(audioData: Uint8Array) => Promise<void>>(() => Promise.resolve());
   sendAudioASRRef.current = async (audioData: Uint8Array) => {
+    if (!enabled) return;
     const engine = engineRef.current;
     if (!engine?.isSocketOpen()) return;
     const cmdId = useChatStore.getState().nextCmdId();
     await engine.sendAudioASRMessage(cmdId, audioData);
   };
 
+  const sendInterruptRef = useRef<() => Promise<boolean>>(() => Promise.resolve(false));
+  sendInterruptRef.current = async (): Promise<boolean> => {
+    if (!enabled) return false;
+    if (CONFIG.USE_MOCK) return true;
+    const engine = engineRef.current;
+    if (!engine?.isSocketOpen()) return false;
+    const cmdId = useChatStore.getState().nextCmdId();
+    await engine.sendInterruptMessage(cmdId);
+    return true;
+  };
+
   useEffect(() => {
     if (CONFIG.USE_MOCK) {
-      setConnected(true);
-      setAuthenticated(true);
+      setConnected(enabled);
+      setAuthenticated(enabled);
       clearError();
       return () => {
         setConnected(false);
         setAuthenticated(false);
       };
+    }
+    if (!enabled) {
+      void asrServiceRef.current?.stopRecording();
+      useChatStore.getState().setVolumeLevel(0);
+      setConnected(false);
+      setAuthenticated(false);
+      clearError();
+      return;
     }
     const engine = new Engine(url);
     engineRef.current = engine;
@@ -96,9 +128,6 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
             onVolumeChange: (rms: number) => useChatStore.getState().setVolumeLevel(rms),
             onSpeakingChange: (speaking: boolean) => {
               useChatStore.getState().setIsSpeaking(speaking);
-              if (speaking && useChatStore.getState().isTTSPlaying) {
-                stopTTSPlayback();
-              }
             },
           }
         );
@@ -106,10 +135,49 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
     });
 
     engine.emitter.on("response", (response) => {
-      handleResponse(response);
+      if (response.type === RespType.UserText) {
+        const contentData = getRespContentData(response.content);
+        const hasValidChar =
+          typeof contentData === "string" && contentData.trim().length > 0;
+
+        // 仅在模型 TTS 正在播放时：首个有效 ASR 字才发 CType=5，避免模型尚未出声时误发打断
+        const ttsPlaying = useChatStore.getState().isTTSPlaying;
+        if (
+          hasValidChar &&
+          !hasSentInterruptForCurrentSpeechRef.current &&
+          ttsPlaying
+        ) {
+          hasSentInterruptForCurrentSpeechRef.current = true;
+          isInterruptPendingRef.current = true;
+          stopTTSPlayback();
+          void sendInterruptRef.current().then((sent) => {
+            if (!sent) {
+              isInterruptPendingRef.current = false;
+            }
+          });
+        }
+      }
+
+      if (response.type === RespType.Interrupt) {
+        // 仅消费「本轮因播放中打断」触发的确认，与发送侧成对
+        if (isInterruptPendingRef.current) {
+          isInterruptPendingRef.current = false;
+        }
+      }
+
+      const shouldPauseFrontendHandling =
+        isInterruptPendingRef.current &&
+        response.type !== RespType.Interrupt &&
+        response.type !== RespType.UserText &&
+        response.type !== RespType.ASRStop;
+
+      if (!shouldPauseFrontendHandling) {
+        handleResponse(response);
+      }
 
       if (response.type === RespType.ASRStop) {
         console.info("[useChat] <<< 收到后端 ASRStop (800ms静音)，本段 ASR 结束");
+        hasSentInterruptForCurrentSpeechRef.current = false;
 
         // handleServerStop 内部的 ws.send 是同步的（尽管函数签名为 async），
         // 用 void 触发即可；下面的 sendText 也在同一个同步块中执行 ws.send，
@@ -163,7 +231,18 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
       setConnected(false);
       setAuthenticated(false);
     };
-  }, [url, userId, token, memoizedInfo, clearError, setAuthenticated, setConfig, setConnected, setError]);
+  }, [
+    url,
+    userId,
+    token,
+    memoizedInfo,
+    enabled,
+    clearError,
+    setAuthenticated,
+    setConfig,
+    setConnected,
+    setError,
+  ]);
 
   // Stable callbacks returned to consumers – delegate to refs so the
   // identity never changes and downstream useCallback / useMemo stay stable.
@@ -173,15 +252,18 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
   );
 
   const startASR = useCallback(async () => {
+    if (!enabled) return false;
     if (!asrServiceRef.current) return false;
-    if (useChatStore.getState().isTTSPlaying) {
-      stopTTSPlayback();
-    }
+    hasSentInterruptForCurrentSpeechRef.current = false;
+    isInterruptPendingRef.current = false;
     useChatStore.getState().setAcceptingASR(true);
     return await asrServiceRef.current.startContinuousRecording();
-  }, []);
+  }, [enabled]);
 
   const stopASR = useCallback(async () => {
+    if (!enabled) return;
+    hasSentInterruptForCurrentSpeechRef.current = false;
+    isInterruptPendingRef.current = false;
     if (asrServiceRef.current) {
       await asrServiceRef.current.stopContinuousRecording();
     }
@@ -200,7 +282,7 @@ export function useChat(url: string, userId: string, token: string, info: UserIn
         await sendTextRef.current(text);
       }
     }
-  }, []);
+  }, [enabled]);
 
   const getASRState = useCallback(() => {
     return asrServiceRef.current?.getRecordingState() || false;
