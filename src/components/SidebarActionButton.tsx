@@ -28,8 +28,8 @@ export function SidebarActionButton({
   const themeClassName =
     variant === "red"
       ? theme === "light"
-        ? "bg-[#FAA3A5] text-white hover:bg-[#F5BABA]"
-        : "bg-[linear-gradient(90deg,#96C0FF_16.35%,#6843EC_100%)] text-white hover:opacity-90"
+        ? "bg-[#FAA3A5] text-white"
+        : "bg-[linear-gradient(90deg,#96C0FF_16.35%,#6843EC_100%)] text-white"
       : theme === "light"
       ? "bg-[#F6F6F6] text-[#3B3B53] hover:bg-gray-200"
       : "bg-[linear-gradient(90deg,#96C0FF_16.35%,#6843EC_100%)] text-white hover:opacity-90";
