@@ -16,6 +16,7 @@ export interface ASRServiceOptions {
 }
 
 const VAD_SPEECH_THRESHOLD = 0.015;
+const VAD_SILENCE_THRESHOLD = 0.012;
 const VAD_ONSET_FRAMES = 3;
 const VAD_PREFETCH_SIZE = 2;
 
@@ -47,9 +48,12 @@ export class ASRService {
   private prefetchBuffer: Uint8Array[] = [];
   private onSpeakingChange: ((speaking: boolean) => void) | null = null;
   private vadCooldownUntil = 0; // 防抖：发送结束信号后的冷却期，防止立即检测到新语音
+  private silenceStartedAt = 0;
+  private localStopInFlight = false;
 
   private static readonly VOLUME_UPDATE_INTERVAL_MS = 67; // ~15 Hz
   private static readonly VAD_COOLDOWN_MS = 500; // 发送结束信号后 500ms 内不检测新语音
+  private static readonly LOCAL_VAD_OFF_MS = 1500; // 本地兜底：连续静音 1.5s 判定说话结束
 
   constructor() {
     this.audioChunks = [];
@@ -217,6 +221,8 @@ export class ASRService {
       this.isContinuousMode = true;
       this.isSpeaking = false;
       this.vadConsecutiveFrames = 0;
+      this.silenceStartedAt = 0;
+      this.localStopInFlight = false;
       this.smoothedRms = 0;
       this.volumeUpdateAt = 0;
 
@@ -255,6 +261,8 @@ export class ASRService {
     this.isRecording = false;
     this.isContinuousMode = false;
     this.vadConsecutiveFrames = 0;
+    this.silenceStartedAt = 0;
+    this.localStopInFlight = false;
     this.prefetchBuffer = [];
 
     if (this.config?.format.toLowerCase() === 'pcm') {
@@ -304,6 +312,8 @@ export class ASRService {
     this.vadConsecutiveFrames = 0;
     this.prefetchBuffer = [];
     this.currentChunk = [];
+    this.silenceStartedAt = 0;
+    this.localStopInFlight = false;
     this.onSpeakingChange?.(false);
 
     console.info("[ASR] ASR 结束信号已发送，回到 VAD 监听，等待用户再次说话");
@@ -445,6 +455,19 @@ export class ASRService {
 
       // Speaking: accumulate for chunked sending
       this.currentChunk.push(pcmData);
+      if (this.smoothedRms < VAD_SILENCE_THRESHOLD) {
+        if (this.silenceStartedAt === 0) {
+          this.silenceStartedAt = now;
+        } else if (
+          !this.localStopInFlight &&
+          now - this.silenceStartedAt >= ASRService.LOCAL_VAD_OFF_MS
+        ) {
+          this.localStopInFlight = true;
+          void this.transitionToListeningByLocalSilence();
+        }
+      } else {
+        this.silenceStartedAt = 0;
+      }
       return;
     }
 
@@ -461,6 +484,8 @@ export class ASRService {
     
     this.isSpeaking = true;
     this.vadConsecutiveFrames = 0;
+    this.silenceStartedAt = 0;
+    this.localStopInFlight = false;
 
     // 发送开始信号
     console.info("[ASR] >>> 发送开始信号 [0]");
@@ -568,6 +593,35 @@ export class ASRService {
     if (this.chunkInterval) {
       clearInterval(this.chunkInterval);
       this.chunkInterval = null;
+    }
+  }
+
+  /**
+   * 本地静音兜底：当后端未及时返回 ASRStop 时，连续静音达阈值后主动结束本段语音。
+   */
+  private async transitionToListeningByLocalSilence(): Promise<void> {
+    if (!this.isContinuousMode || !this.isSpeaking) {
+      this.localStopInFlight = false;
+      return;
+    }
+
+    console.info("[ASR] 本地 VAD_OFF 触发（连续静音），主动结束本段语音");
+    this.stopChunking();
+
+    try {
+      if (this.currentChunk.length > 0) {
+        await this.sendPCMChunk();
+      }
+      await this.sendASREndSignal();
+    } finally {
+      this.isSpeaking = false;
+      this.vadConsecutiveFrames = 0;
+      this.prefetchBuffer = [];
+      this.currentChunk = [];
+      this.silenceStartedAt = 0;
+      this.localStopInFlight = false;
+      this.vadCooldownUntil = performance.now() + ASRService.VAD_COOLDOWN_MS;
+      this.onSpeakingChange?.(false);
     }
   }
 
@@ -782,6 +836,8 @@ export class ASRService {
     this.isContinuousMode = false;
     this.isSpeaking = false;
     this.vadConsecutiveFrames = 0;
+    this.silenceStartedAt = 0;
+    this.localStopInFlight = false;
     this.config = null;
     this.onResult = null;
     this.sendAudioASR = null;

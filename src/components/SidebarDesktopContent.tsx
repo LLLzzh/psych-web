@@ -1,5 +1,6 @@
-import teacherImage from "../assets/teacher.png";
+import defaultTeacherImage from "../assets/teacher.png";
 import { SidebarActionButton } from "./SidebarActionButton";
+import { useConfigStore } from "../store/configStore";
 
 type ThemeMode = "light" | "dark";
 
@@ -18,6 +19,9 @@ export function SidebarDesktopContent({
   onEndConversation,
   onViewConversationRecords,
 }: SidebarDesktopContentProps) {
+  const { modelView } = useConfigStore();
+  const teacherImage = modelView || defaultTeacherImage;
+
   return (
     <div className="mx-2 flex-1 mt-6">
       <div className="flex flex-col gap-3">

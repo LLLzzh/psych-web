@@ -1,8 +1,9 @@
 import { useChat } from "../hooks/useChat";
 import { useSendMessage } from "../hooks/useSendMessage";
-import { useChatStore } from "../store/chatStore";
+import { stopTTSPlayback, useChatStore } from "../store/chatStore";
 import { useAuthStore } from "../store/authStore";
 import { createConversation } from "../apis/conversation";
+import { getModelAndBgImage } from "../apis/config";
 import { Sidebar } from "./Sidebar";
 import { ChatArea } from "./ChatArea";
 import { InputArea } from "./InputArea";
@@ -18,7 +19,7 @@ import { useConfigStore } from "../store/configStore";
 function ChatPage() {
   const navigate = useNavigate();
   const { userId, token, info, clearAuth } = useAuthStore();
-  const { theme } = useConfigStore();
+  const { theme, setBackgroundImage, setModelView } = useConfigStore();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [hasShownConnected, setHasShownConnected] = useState(false);
   const [hasConversationStarted, setHasConversationStarted] = useState(false);
@@ -59,6 +60,19 @@ function ChatPage() {
       navigate("/login");
     }
   }, [userId, token, navigate]);
+
+  useEffect(() => {
+    const unitId = info?.unitId;
+    if (!unitId) return;
+    getModelAndBgImage(unitId)
+      .then((res) => {
+        if (res.data?.backgroundImage) setBackgroundImage(res.data.backgroundImage);
+        if (res.data?.modelView) setModelView(res.data.modelView);
+      })
+      .catch((err) => {
+        console.error("获取背景图和教师形象失败:", err);
+      });
+  }, [info?.unitId, setBackgroundImage, setModelView]);
 
   const {
     sendText,
@@ -195,6 +209,7 @@ function ChatPage() {
       return;
     }
 
+    stopTTSPlayback();
     setEndConversationSignal((prev) => prev + 1);
     void stopASR();
     clearMessages();

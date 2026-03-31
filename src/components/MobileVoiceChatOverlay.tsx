@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useChatStore } from "../store/chatStore";
 import { Background } from "./Background";
 import { CONFIG } from "../config";
-import teacherImage from "../assets/teacher.png";
+import defaultTeacherImage from "../assets/teacher.png";
+import { useConfigStore } from "../store/configStore";
 import user from "../assets/user.svg";
 import recordsIcon from "../assets/records-dark.svg";
 import switchIcon from "../assets/switch.svg";
@@ -40,6 +41,8 @@ export function MobileVoiceChatOverlay({
   const addMessage = useChatStore((state) => state.addMessage);
   const volumeLevel = useChatStore((state) => state.volumeLevel);
   const isUserSpeaking = useChatStore((state) => state.isSpeaking);
+  const { modelView } = useConfigStore();
+  const teacherImage = modelView || defaultTeacherImage;
 
   const [mockSpeaking, setMockSpeaking] = useState(false);
   const mockTimerRef = useRef<number | null>(null);

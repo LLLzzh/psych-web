@@ -1,7 +1,7 @@
 import { useConfigStore } from "../store/configStore";
-import backgroundImage from "../assets/background1.jpg";
-import backgroundImageAlt from "../assets/background2.jpg";
-import mobileBackground from "../assets/mobile-bg.jpg";
+import defaultBackgroundImage from "../assets/background1.jpg";
+import defaultBackgroundImageAlt from "../assets/background2.jpg";
+import defaultMobileBackground from "../assets/mobile-bg.jpg";
 
 type ThemeMode = "light" | "dark";
 
@@ -33,10 +33,14 @@ export function Background({
   mobileOnly = false,
   mobileLightOnly = false,
 }: BackgroundProps) {
-  const { theme } = useConfigStore();
+  const { theme, backgroundImage: customBg } = useConfigStore();
 
   const effectiveTheme = themeOverride ?? theme;
   const isLight = effectiveTheme === "light";
+
+  const backgroundImage = customBg || defaultBackgroundImage;
+  const backgroundImageAlt = customBg || defaultBackgroundImageAlt;
+  const mobileBackground = customBg || defaultMobileBackground;
 
   if (mobileLightOnly) {
     return (
