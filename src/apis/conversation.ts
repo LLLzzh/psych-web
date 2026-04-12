@@ -204,7 +204,7 @@ export function createConversationOnUnload(): void {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Xh-Env": "test",
+      "X-Xh-Env": CONFIG.XH_ENV,
       Authorization: token,
     },
     body: JSON.stringify({}),

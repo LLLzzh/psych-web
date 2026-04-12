@@ -6,15 +6,16 @@ import type {
   AxiosResponse,
   InternalAxiosRequestConfig,
 } from "axios";
+import { CONFIG, getApiBaseUrl, setApiBaseUrl } from "../config";
 //定义接口返回的数据结构
 interface ApiResponse {
   code: number;
   msg: string;
   data?: object;
 }
-//Axios实例
+//Axios实例（baseURL 与 CONFIG / .env 中 VITE_API_BASE_URL 一致）
 const service: AxiosInstance = axios.create({
-  baseURL: "https://api.aiecnu.net/psych",
+  baseURL: getApiBaseUrl(),
   timeout: 5000,
 });
 
@@ -37,7 +38,7 @@ function getAuthToken(): string | null {
 service.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     //发送请求前的处理>
-    config.headers["X-Xh-Env"] = "test";
+    config.headers["X-Xh-Env"] = CONFIG.XH_ENV;
     if (config.headers) {
       const token = getAuthToken();
       if (token) {
@@ -96,10 +97,12 @@ service.interceptors.response.use(
   }
 );
 
-/** 运行时修改 Axios baseURL，开发环境下可在控制台执行：`setBase("http://localhost:8080/psych")` */
+/** 运行时统一改 HTTP base 与 WS（由 HTTP 推导 wss/ws + …/chat），开发环境可在控制台：`setBase("http://localhost:8080/psych")` */
 export function setBase(baseURL: string) {
-  service.defaults.baseURL = baseURL;
-  console.info("[request] baseURL →", baseURL);
+  const normalized = baseURL.trim().replace(/\/$/, "");
+  setApiBaseUrl(normalized);
+  service.defaults.baseURL = normalized;
+  console.info("[request] API →", normalized, "| WS →", CONFIG.WS_URL);
 }
 
 if (import.meta.env.DEV && typeof window !== "undefined") {

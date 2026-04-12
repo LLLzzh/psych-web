@@ -13,6 +13,11 @@ dist
 dist-ssr
 *.local
 
+# Local env overrides (Vite)
+.env
+.env.local
+.env.*.local
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
