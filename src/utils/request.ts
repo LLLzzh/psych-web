@@ -97,7 +97,7 @@ service.interceptors.response.use(
   }
 );
 
-/** 运行时统一改 HTTP base 与 WS（由 HTTP 推导 wss/ws + …/chat），开发环境可在控制台：`setBase("http://localhost:8080/psych")` */
+/** 运行时统一改 HTTP base 与 WS（由 HTTP 推导 wss/ws + …/chat）。生产构建也会挂到 `window.setBase`，可在控制台：`setBase("http://localhost:8080/psych")` */
 export function setBase(baseURL: string) {
   const normalized = baseURL.trim().replace(/\/$/, "");
   setApiBaseUrl(normalized);
@@ -105,7 +105,7 @@ export function setBase(baseURL: string) {
   console.info("[request] API →", normalized, "| WS →", CONFIG.WS_URL);
 }
 
-if (import.meta.env.DEV && typeof window !== "undefined") {
+if (typeof window !== "undefined") {
   window.setBase = setBase;
 }
 
