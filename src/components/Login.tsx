@@ -1,20 +1,46 @@
-import { useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useState, useEffect } from "react"
+import { useNavigate, useParams } from "react-router-dom"
 import { message as antMessage } from "antd";
 import { login, type LoginRequset, type LoginResponse } from "../apis/login"
 import { useAuthStore } from "../store/authStore"
 import logoDark from "../assets/logo-dark.png"
 import { CONFIG } from "../config"
+import { getUnitIdByUri } from "../apis/config"
+import { pathChat } from "../paths"
 import { Background } from "./Background"
 
 function Login() {
     const navigate = useNavigate();
+    const { unitUri: unitUriParam } = useParams<{ unitUri: string }>();
+    const unitUri = unitUriParam ?? CONFIG.DEFAULT_UNIT_URI;
     const setAuth = useAuthStore((state) => state.setAuth);
     const [authId, setAuthId] = useState("");
     const [verifyCode, setVerifyCode] = useState("");
     const [loading, setLoading] = useState(false);
+    const [resolvedUnitId, setResolvedUnitId] = useState<string | null>(null);
+    const [resolvingUnit, setResolvingUnit] = useState(true);
 
-    const unitId: string = CONFIG.UNIT_ID
+    useEffect(() => {
+        let cancelled = false;
+        setResolvingUnit(true);
+        setResolvedUnitId(null);
+        void getUnitIdByUri(unitUri)
+            .then((id) => {
+                if (!cancelled) setResolvedUnitId(id);
+            })
+            .catch((err: unknown) => {
+                console.error("解析机构失败:", err);
+                const msg =
+                    err instanceof Error ? err.message : "无法加载机构信息，请稍后重试";
+                antMessage.error(msg);
+            })
+            .finally(() => {
+                if (!cancelled) setResolvingUnit(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [unitUri]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -28,11 +54,15 @@ function Login() {
             antMessage.error("请输入密码");
             return;
         }
+        if (!resolvedUnitId) {
+            antMessage.error("机构信息未就绪，请刷新页面重试");
+            return;
+        }
 
         setLoading(true);
         try {
             const loginParams: LoginRequset = {
-                unitId: unitId,
+                unitId: resolvedUnitId,
                 authType: 'AuthStudentIdAndPwd',
                 authId: authId.trim(),
                 verifyCode: verifyCode.trim()
@@ -46,7 +76,7 @@ function Login() {
 
                 if (info.userId && token) {
                     setAuth(info.userId, token, info);
-                    navigate('/chat');
+                    navigate(pathChat(unitUri));
                 } else {
                     antMessage.error("登录成功但返回数据格式异常");
                 }
@@ -88,15 +118,15 @@ function Login() {
                         <form onSubmit={handleSubmit} className="space-y-6">
                             <div>
                                 <label htmlFor="phone" className="block text-sm font-medium mb-2 text-gray-300">
-                                    手机号
+                                    账号
                                 </label>
                                 <input 
                                     type="text" 
                                     id="phone" 
                                     value={authId}
                                     onChange={(e) => setAuthId(e.target.value)}
-                                    disabled={loading}
-                                    placeholder="请输入手机号"
+                                    disabled={loading || resolvingUnit}
+                                    placeholder="请输入账号"
                                     autoComplete="tel"
                                     className="w-full px-4 py-3 rounded-lg transition-colors border focus:ring-2 focus:ring-[#96C0FF] focus:border-transparent disabled:opacity-60 bg-[rgba(0,0,0,0.3)] text-white border-[rgba(255,255,255,0.2)] placeholder:text-gray-400"
                                 />
@@ -110,7 +140,7 @@ function Login() {
                                     id="password" 
                                     value={verifyCode}
                                     onChange={(e) => setVerifyCode(e.target.value)}
-                                    disabled={loading}
+                                    disabled={loading || resolvingUnit}
                                     placeholder="请输入密码"
                                     autoComplete="current-password"
                                     className="w-full px-4 py-3 rounded-lg transition-colors border focus:ring-2 focus:ring-[#96C0FF] focus:border-transparent disabled:opacity-60 bg-[rgba(0,0,0,0.3)] text-white border-[rgba(255,255,255,0.2)] placeholder:text-gray-400"
@@ -118,7 +148,7 @@ function Login() {
                             </div>
                             <button 
                                 type="submit"
-                                disabled={loading}
+                                disabled={loading || resolvingUnit || !resolvedUnitId}
                                 className="w-full font-medium py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2 bg-[linear-gradient(303.86deg,#8686FF_6.61%,#96C0FF_93.39%)] text-white hover:opacity-90 disabled:opacity-70"
                             >
                                 {loading ? (
@@ -129,6 +159,8 @@ function Login() {
                                         </svg>
                                         <span>登录中...</span>
                                     </>
+                                ) : resolvingUnit ? (
+                                    <span>加载机构信息...</span>
                                 ) : (
                                     "登录"
                                 )}

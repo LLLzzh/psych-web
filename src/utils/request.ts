@@ -14,7 +14,7 @@ interface ApiResponse {
 }
 //Axios实例
 const service: AxiosInstance = axios.create({
-  baseURL: "https://api.xhpolaris.com/psych",
+  baseURL: "https://api.aiecnu.net/psych",
   timeout: 5000,
 });
 
@@ -95,6 +95,16 @@ service.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+/** 运行时修改 Axios baseURL，开发环境下可在控制台执行：`setBase("http://localhost:8080/psych")` */
+export function setBase(baseURL: string) {
+  service.defaults.baseURL = baseURL;
+  console.info("[request] baseURL →", baseURL);
+}
+
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  window.setBase = setBase;
+}
 
 //封装请求方法
 const request = {

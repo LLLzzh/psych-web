@@ -11,13 +11,15 @@ import { ErrorMessage } from "./ErrorMessage";
 import { Background } from "./Background";
 import { MobileVoiceChatOverlay } from "./MobileVoiceChatOverlay";
 import { CONFIG } from "../config";
-import { useNavigate } from "react-router-dom";
+import { pathLogin, pathRecords } from "../paths";
+import { useNavigate, useParams } from "react-router-dom";
 import { message } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useConfigStore } from "../store/configStore";
 
 function ChatPage() {
   const navigate = useNavigate();
+  const { unitUri = CONFIG.DEFAULT_UNIT_URI } = useParams<{ unitUri: string }>();
   const { userId, token, info, clearAuth } = useAuthStore();
   const { theme, setBackgroundImage, setModelView } = useConfigStore();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -57,9 +59,9 @@ function ChatPage() {
   // 监听认证状态，如果无效则跳转登录
   useEffect(() => {
     if (!userId || !token) {
-      navigate("/login");
+      navigate(pathLogin(unitUri));
     }
-  }, [userId, token, navigate]);
+  }, [userId, token, navigate, unitUri]);
 
   useEffect(() => {
     const unitId = info?.unitId;
@@ -103,9 +105,9 @@ function ChatPage() {
   useEffect(() => {
     if (error && (error.includes("未授权") || error.includes("认证失败") || error.includes("401"))) {
       clearAuth();
-      navigate("/login");
+      navigate(pathLogin(unitUri));
     }
-  }, [error, clearAuth, navigate]);
+  }, [error, clearAuth, navigate, unitUri]);
 
   useEffect(() => {
     if (hasConversationStarted && isConnected && isAuthenticated && !hasShownConnected) {
@@ -200,7 +202,7 @@ function ChatPage() {
     clearAuth();
     setCurrentConversationId(null);
     currentConversationIdRef.current = null;
-    navigate("/login");
+    navigate(pathLogin(unitUri));
   };
 
   const handleEndConversation = () => {
@@ -275,7 +277,7 @@ function ChatPage() {
             isConnecting={isConnecting}
             onLogout={handleLogout}
             onEndConversation={handleEndConversation}
-            onViewConversationRecords={() => navigate("/records")}
+            onViewConversationRecords={() => navigate(pathRecords(unitUri))}
             onEnterVoiceMode={handleEnterVoiceMode}
             onClearMessages={clearMessages}
             collapsed={isSidebarCollapsed}
@@ -329,7 +331,7 @@ function ChatPage() {
       <MobileVoiceChatOverlay
         isVisible={isMobileVoiceMode}
         onClose={handleCloseMobileVoiceOverlay}
-        onViewConversationRecords={() => navigate("/records")}
+        onViewConversationRecords={() => navigate(pathRecords(unitUri))}
         onSwitchToChatMode={handleCloseMobileVoiceOverlay}
         isSpeaking={isTTSPlaying}
         onStartASR={handleMobileStartASR}
