@@ -314,7 +314,10 @@ function ChatPage() {
             </div>
           </div>
 
-          <div className="fixed bottom-0 left-0 w-full z-20 md:absolute md:z-10">
+          <div
+            id="chat-input-container"
+            className="fixed bottom-0 left-0 w-full z-20 md:absolute md:z-10"
+          >
             <InputArea
                 onSendText={sendMessage}
                 onStartASR={startASRWithAutoStart}
