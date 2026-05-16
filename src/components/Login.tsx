@@ -63,7 +63,7 @@ function Login() {
         try {
             const loginParams: LoginRequset = {
                 unitId: resolvedUnitId,
-                authType: 'AuthStudentIdAndPwd',
+                authType: 'code-password',
                 authId: authId.trim(),
                 verifyCode: verifyCode.trim()
             }

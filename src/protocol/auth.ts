@@ -3,15 +3,15 @@ import type { UserInfo } from "../apis/login";
 
 export interface AuthPayload {
   authId: string;      // 认证ID，如电话号码
-  authType: number;    // 校验方式，如Phone
+  authType: AuthType;  // 校验方式，如Phone
   verifyCode: string;  // 校验令牌，如验证码
   info: UserInfo; // 额外信息
 }
 
 // 认证类型常量
 export const AuthType = {
-  AlreadyAuth: -1,
-  Phone: 1,
+  AlreadyAuth: 'already',
+  Phone: 'phone',
 } as const;
 
 export type AuthType = typeof AuthType[keyof typeof AuthType];

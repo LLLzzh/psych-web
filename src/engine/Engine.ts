@@ -54,7 +54,7 @@ export class Engine {
       return;
     }
 
-    console.info("WebSocket connecting:", this.url);
+    console.info("WebSocket connecting");
     this.ws = new WebSocket(this.url);
 
     this.ws.onopen = () => {
@@ -101,7 +101,7 @@ export class Engine {
 
     const delay = Math.min(this.baseReconnectDelayMs * (2 ** this.reconnectAttempts), this.maxReconnectDelayMs);
     this.reconnectAttempts += 1;
-    console.info(`WebSocket reconnect scheduled in ${delay}ms`);
+    console.info("WebSocket reconnect scheduled");
     this.reconnectTimer = window.setTimeout(() => {
       this.reconnectTimer = undefined;
       if (!this.manualClose) {
@@ -141,11 +141,7 @@ export class Engine {
       // 通过handler创建ping消息
       const buffer = this.handler.createPingMessage();
       if (buffer) {
-        const now = new Date();
-        console.info("send heartbeat ping", {
-          timestamp: now.toISOString(),
-          localTime: now.toLocaleString(),
-        });
+        console.info("send heartbeat ping");
         await this.sendBinary(buffer);
       }
     }
@@ -155,7 +151,7 @@ export class Engine {
   async sendTextMessage(id: number, text: string): Promise<void> {
     const buffer = this.handler.createTextCmd(id, text);
     if (buffer) {
-      console.info("send text", { id, text });
+      console.info("send text");
       await this.sendBinary(buffer);
     }
   }
@@ -164,7 +160,7 @@ export class Engine {
   async sendAudioASRMessage(id: number, audioData: Uint8Array): Promise<void> {
     const buffer = this.handler.createAudioASRCmd(id, audioData);
     if (buffer) {
-      console.info("send audio asr", { id, size: audioData.length });
+      console.info("send audio asr");
       await this.sendBinary(buffer);
     }
   }
@@ -173,7 +169,7 @@ export class Engine {
   async sendInterruptMessage(id: number): Promise<void> {
     const buffer = this.handler.createInterruptCmd(id);
     if (buffer) {
-      console.info("send interrupt", { id, cType: 5 });
+      console.info("send interrupt");
       await this.sendBinary(buffer);
     }
   }

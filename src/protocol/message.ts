@@ -192,12 +192,6 @@ export function decodeMessage(buffer: ArrayBuffer, meta: Meta): Message | null {
       const jsonPayload = base64ToUtf8(obj.payload);
       const payload = JSON.parse(jsonPayload);
 
-      console.log('receive message: \n',{
-        type: obj.type,
-        payload: payload,
-        timestamp: obj.timestamp,
-      })
-
       return {
         type: obj.type,
         payload: payload,
@@ -224,8 +218,6 @@ export function decodeMessage(buffer: ArrayBuffer, meta: Meta): Message | null {
 export function createMessage(type: MType, payload: unknown, timestamp?: number): Message {
   if(type === MType.Ping){
     payload= {data: null}
-  } else {
-    console.log('send message (before encoding): \n', { type, payload, timestamp: formatTime(timestamp || Date.now()) });
   }
   const jsonPayload = JSON.stringify(payload);
   const base64Payload = utf8ToBase64(jsonPayload);

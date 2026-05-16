@@ -66,6 +66,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   upsertStreamingUserMessage: (content: string) => {
+    const normalizedContent = content.trim();
+    if (!normalizedContent) {
+      return;
+    }
+
     set((state) => {
       const messages = [...state.messages];
       const lastMessage = messages[messages.length - 1];
@@ -73,7 +78,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (lastMessage?.type === "user" && lastMessage.isStreamingASR) {
         messages[messages.length - 1] = {
           ...lastMessage,
-          content,
+          content: normalizedContent,
           timestamp: Date.now(),
         };
         return { messages };
@@ -82,7 +87,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages.push({
         id: `user-asr-${Date.now()}`,
         type: "user",
-        content,
+        content: normalizedContent,
         timestamp: Date.now(),
         isStreamingASR: true,
       });
@@ -276,7 +281,6 @@ function enqueuePcmChunk(chunk: ArrayBuffer): void {
 async function scheduleNextPcmBatch(): Promise<void> {
   const audioContext = await ensurePcmAudioContext();
   if (!audioContext || pcmQueue.length === 0) {
-    console.info("[TTS] scheduleNextPcmBatch: audioContext 或队列为空", { hasContext: !!audioContext, queueLen: pcmQueue.length });
     return;
   }
 
@@ -288,10 +292,8 @@ async function scheduleNextPcmBatch(): Promise<void> {
   const bitsPerSample = ttsConfig?.bits ?? 16;
   const bytesPerSample = bitsPerSample / 8;
 
-  console.info("[TTS] scheduleNextPcmBatch: 配置", { channels, sampleRate, bitsPerSample, queueLen: pcmQueue.length });
-
   if (bytesPerSample !== 2) {
-    console.warn(`[TTS] 暂不支持 ${bitsPerSample} 位PCM，当前仅支持16位PCM`);
+    console.warn("[TTS] 暂不支持当前位数的 PCM，当前仅支持16位PCM");
     pcmQueue = [];
     return;
   }
@@ -308,7 +310,6 @@ async function scheduleNextPcmBatch(): Promise<void> {
   }
 
   const totalFrames = Math.floor(merged.byteLength / (channels * bytesPerSample));
-  console.info("[TTS] scheduleNextPcmBatch: 准备播放", { totalBytes, totalFrames });
   if (totalFrames <= 0) {
     console.warn("[TTS] totalFrames <= 0，跳过播放");
     return;
@@ -388,14 +389,12 @@ export function handleResponse(response: RespPayload): void {
 
   switch (response.type) {
     case RespType.UserText:
-      console.info("[Chat] 收到 UserText:", contentData, "isAcceptingASR:", useChatStore.getState().isAcceptingASR);
       if (typeof contentData === "string" && useChatStore.getState().isAcceptingASR) {
         upsertStreamingUserMessage(contentData);
       }
       break;
 
     case RespType.ModelText:
-      console.info("[Chat] 收到 ModelText:", typeof contentData, contentData?.slice?.(0, 100));
       if (typeof contentData === "string") {
         finalizeStreamingUserMessage();
         const messages = useChatStore.getState().messages;
@@ -412,7 +411,7 @@ export function handleResponse(response: RespPayload): void {
           });
         }
       } else {
-        console.warn("[Chat] ModelText 内容不是字符串:", typeof contentData);
+        console.warn("[Chat] ModelText 内容不是字符串");
       }
       break;
 
@@ -428,12 +427,10 @@ export function handleResponse(response: RespPayload): void {
 
         if (contentData instanceof Uint8Array) {
           audioData = contentData;
-          console.info("[TTS] 收到 Uint8Array 音频数据, size:", audioData.length);
         } else if (typeof contentData === "string") {
           audioData = new Uint8Array(base64ToArrayBuffer(contentData));
-          console.info("[TTS] 收到 base64 音频数据, 解码后 size:", audioData.length);
         } else {
-          console.warn("[TTS] 收到未知类型的音频数据:", typeof contentData);
+          console.warn("[TTS] 收到未知类型的音频数据");
         }
 
         if (!audioData) {
@@ -444,10 +441,8 @@ export function handleResponse(response: RespPayload): void {
         const ttsConfig = useConfigStore.getState().config?.ttsConfig;
         const ttsFormat = ttsConfig?.format?.toLowerCase();
         const ttsCodec = ttsConfig?.codec?.toLowerCase();
-        console.info("[TTS] ttsConfig:", { format: ttsFormat, codec: ttsCodec, rate: ttsConfig?.rate, bits: ttsConfig?.bits, channels: ttsConfig?.channels });
 
         if (ttsFormat === "pcm" && ttsCodec === "raw") {
-          console.info("[TTS] 使用 PCM raw 模式播放");
           enqueuePcmChunk(getSafeArrayBuffer(audioData));
           break;
         }

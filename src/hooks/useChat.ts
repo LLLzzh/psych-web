@@ -176,7 +176,7 @@ export function useChat(
       }
 
       if (response.type === RespType.ASRStop) {
-        console.info("[useChat] <<< 收到后端 ASRStop (800ms静音)，本段 ASR 结束");
+        console.info("[ASR] 后端返回 RespType.ASRStop");
         hasSentInterruptForCurrentSpeechRef.current = false;
 
         // handleServerStop 内部的 ws.send 是同步的（尽管函数签名为 async），
@@ -192,7 +192,6 @@ export function useChat(
         const lastMessage = messages[messages.length - 1];
         if (lastMessage?.type === "user" && lastMessage.isStreamingASR) {
           const text = lastMessage.content.trim();
-          console.info("[useChat] 本段识别文本:", text || "(空)");
           if (text) {
             store.addThinkingMessage();
             void sendTextRef.current(text).then((sent) => {

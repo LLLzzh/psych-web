@@ -99,7 +99,7 @@ export class ASRService {
 
   private async sendASREndSignal(): Promise<void> {
     if (this.sendAudioASR) {
-      console.info("[ASR] >>> 发送 ASR 结束信号 [255]（本段语音结束，非对话结束）");
+      console.info("[ASR] 向后端发送 ASR 结束信号");
       const endSignal = new Uint8Array([255]);
       await this.sendAudioASR(endSignal);
     }
@@ -232,7 +232,6 @@ export class ASRService {
         await this.startMediaRecorderRecording(stream);
       }
 
-      console.info("[ASR] Continuous mode started, VAD listening");
       return true;
     } catch (error) {
       console.error("开始连续录音失败:", error);
@@ -245,14 +244,11 @@ export class ASRService {
   async stopContinuousRecording(): Promise<void> {
     if (!this.isRecording) return;
     
-    console.info("[ASR] 停止连续录音，isSpeaking=", this.isSpeaking);
-
     // 用户手动停止时，如果正在说话，需要发送结束信号
     if (this.isSpeaking) {
       if (this.currentChunk.length > 0) {
         await this.sendPCMChunk();
       }
-      console.info("[ASR] 用户手动停止，发送结束信号");
       await this.sendASREndSignal();
       this.isSpeaking = false;
       this.onSpeakingChange?.(false);
@@ -277,7 +273,6 @@ export class ASRService {
     }
 
     this.onVolumeChange?.(0);
-    console.info("[ASR] 连续模式已停止，麦克风已关闭");
   }
 
   /**
@@ -286,10 +281,7 @@ export class ASRService {
    * 注意：这只是一段语音的结束，不是整个对话的结束，麦克风仍然开着.
    */
   async handleServerStop(): Promise<void> {
-    console.info("[ASR] <<< 收到后端 ASRStop (800ms静音)，isContinuousMode=", this.isContinuousMode, "isSpeaking=", this.isSpeaking);
-    
     if (!this.isContinuousMode) {
-      console.info("[ASR] 非连续模式，忽略");
       return;
     }
 
@@ -315,8 +307,6 @@ export class ASRService {
     this.silenceStartedAt = 0;
     this.localStopInFlight = false;
     this.onSpeakingChange?.(false);
-
-    console.info("[ASR] ASR 结束信号已发送，回到 VAD 监听，等待用户再次说话");
   }
 
   getSpeakingState(): boolean {
@@ -340,13 +330,8 @@ export class ASRService {
         await audioCtx.resume();
       }
 
-      console.info("[ASR] AudioContext state:", audioCtx.state, "sampleRate:", audioCtx.sampleRate);
-
       const source = audioCtx.createMediaStreamSource(stream);
       this.mediaStreamSource = source;
-
-      const tracks = stream.getAudioTracks();
-      console.info("[ASR] Audio tracks:", tracks.length, tracks.map(t => `${t.label} enabled=${t.enabled} muted=${t.muted}`));
 
       let workletLoaded = false;
       try {
@@ -370,7 +355,6 @@ export class ASRService {
         source.connect(this.workletNode);
         this.workletNode.connect(audioCtx.destination);
         workletLoaded = true;
-        console.info("[ASR] AudioWorklet loaded and connected");
       } catch (e) {
         console.warn('[ASR] AudioWorklet unavailable, falling back to ScriptProcessor', e);
       }
@@ -379,7 +363,6 @@ export class ASRService {
 
       if (!workletLoaded) {
         this.setupScriptProcessorFallback(audioCtx, source);
-        console.info("[ASR] ScriptProcessor fallback connected");
       }
 
       // In continuous mode, chunking is started on-demand when VAD detects speech
@@ -480,15 +463,11 @@ export class ASRService {
    * 前端只负责"开始"检测，"结束"由后端负责.
    */
   private async transitionToSpeaking(): Promise<void> {
-    console.info("[ASR] VAD 检测到用户开始说话（静音→说话）");
-    
     this.isSpeaking = true;
     this.vadConsecutiveFrames = 0;
     this.silenceStartedAt = 0;
     this.localStopInFlight = false;
 
-    // 发送开始信号
-    console.info("[ASR] >>> 发送开始信号 [0]");
     await this.sendASRStartSignal();
 
     // Flush pre-buffered audio so the beginning of speech isn't lost
@@ -605,7 +584,7 @@ export class ASRService {
       return;
     }
 
-    console.info("[ASR] 本地 VAD_OFF 触发（连续静音），主动结束本段语音");
+    console.info("[ASR] VAD 结束");
     this.stopChunking();
 
     try {

@@ -33,7 +33,8 @@ export function SidebarDesktopContent({
           <img
             src={teacherImage}
             alt="教师形象"
-            className="w-full h-100 object-cover"
+            className="w-full object-cover object-top"
+            style={{ height: "clamp(8rem, calc(100vh - 26.5rem), 25rem)" }}
           />
         </div>
         <SidebarActionButton
