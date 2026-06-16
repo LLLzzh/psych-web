@@ -17,6 +17,7 @@ interface SidebarProps {
   onClearMessages: () => void;
   collapsed: boolean;
   onToggle: () => void;
+  isDesktopLayout: boolean;
 }
 
 export function Sidebar({
@@ -27,6 +28,7 @@ export function Sidebar({
   onViewConversationRecords,
   onEnterVoiceMode,
   collapsed,
+  isDesktopLayout,
 }: SidebarProps) {
   const { theme, toggleTheme } = useConfigStore();
 
@@ -53,47 +55,61 @@ export function Sidebar({
     }
   };
 
+  const layoutClassName = isDesktopLayout
+    ? `h-full opacity-100 [filter:none] [backdrop-filter:none] rounded-bl-[0px] rounded-tr-[20px] rounded-br-[20px] flex-col items-center pt-12 ${
+        collapsed ? "w-20" : "w-76"
+      }`
+    : "h-16 w-full opacity-80 filter-[drop-shadow(0px_4px_5px_rgba(134,141,187,0.05))_drop-shadow(0px_0px_30px_rgba(0,0,0,0.02))] [backdrop-filter:blur(10px)] rounded-b-[10px] flex-row items-center py-2";
+
   return (
-    <div className={`${collapsed ? "px-4" : "px-6"} h-16 w-full md:h-full ${theme === "light" ? "bg-[rgba(255,255,255,0.35)] shadow-[8px_0px_20px_rgba(233,241,252,0.6)]" : "bg-[rgba(0,0,0,0.4)]"} opacity-80 filter-[drop-shadow(0px_4px_5px_rgba(134,141,187,0.05))_drop-shadow(0px_0px_30px_rgba(0,0,0,0.02))] [backdrop-filter:blur(10px)] md:opacity-100 md:[filter:none] md:[backdrop-filter:none] rounded-b-[10px] md:rounded-bl-[0px]  md:rounded-tr-[20px] md:rounded-br-[20px] flex flex-row md:flex-col items-center py-2 md:pt-12 transition-all duration-300 ease-in-out ${
-      collapsed
-        ? "md:w-20"
-        : "md:w-76"
-    }`}>
-      <div className="w-full h-full flex items-center justify-between md:flex-col md:items-stretch md:justify-start md:h-full ">
-        <SidebarMobileHeader
-          onEnterVoiceMode={onEnterVoiceMode}
-          hasConversationStarted={hasConversationStarted}
-          isConnecting={isConnecting}
-          onEndConversation={onEndConversation}
-          onViewConversationRecords={onViewConversationRecords}
-          onLogout={handleLogout}
-        />
+    <div className={`${collapsed ? "px-4" : "px-6"} ${layoutClassName} ${theme === "light" ? "bg-[rgba(255,255,255,0.35)] shadow-[8px_0px_20px_rgba(233,241,252,0.6)]" : "bg-[rgba(0,0,0,0.4)]"} flex transition-all duration-300 ease-in-out`}>
+      <div
+        className={`w-full h-full flex ${
+          isDesktopLayout
+            ? "flex-col items-stretch justify-start"
+            : "items-center justify-between"
+        }`}
+      >
+        {!isDesktopLayout && (
+          <SidebarMobileHeader
+            onEnterVoiceMode={onEnterVoiceMode}
+            hasConversationStarted={hasConversationStarted}
+            isConnecting={isConnecting}
+            onEndConversation={onEndConversation}
+            onViewConversationRecords={onViewConversationRecords}
+            onLogout={handleLogout}
+          />
+        )}
 
-        <div className="hidden md:block w-full md:shrink-0">
-          <div className={`w-full mb-0 md:mb-6`}>
-            <SidebarDesktopHeader
-              collapsed={collapsed}
-              theme={theme}
-              onLogout={handleLogout}
-            />
-          </div>
-        </div>
+        {isDesktopLayout && (
+          <>
+            <div className="w-full shrink-0">
+              <div className="w-full mb-6">
+                <SidebarDesktopHeader
+                  collapsed={collapsed}
+                  theme={theme}
+                  onLogout={handleLogout}
+                />
+              </div>
+            </div>
 
-        {!collapsed && (
-          <div className="hidden md:flex md:flex-col md:flex-1 w-full">
-            <SidebarDesktopContent
-              collapsed={collapsed}
-              theme={theme}
-              hasConversationStarted={hasConversationStarted}
-              onEndConversation={onEndConversation}
-              onViewConversationRecords={onViewConversationRecords}
-            />
-            <SidebarDesktopFooter
-              theme={theme}
-              settingsMenuItems={settingsMenuItems}
-              onSettingsClick={handleSettingsClick}
-            />
-          </div>
+            {!collapsed && (
+              <div className="flex flex-col flex-1 w-full">
+                <SidebarDesktopContent
+                  collapsed={collapsed}
+                  theme={theme}
+                  hasConversationStarted={hasConversationStarted}
+                  onEndConversation={onEndConversation}
+                  onViewConversationRecords={onViewConversationRecords}
+                />
+                <SidebarDesktopFooter
+                  theme={theme}
+                  settingsMenuItems={settingsMenuItems}
+                  onSettingsClick={handleSettingsClick}
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

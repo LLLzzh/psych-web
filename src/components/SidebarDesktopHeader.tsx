@@ -17,7 +17,7 @@ export function SidebarDesktopHeader({
   onLogout,
 }: SidebarDesktopHeaderProps) {
   return collapsed ? (
-    <div className="flex items-center justify-between md:flex-col md:items-center gap-3">
+    <div className="flex flex-col items-center gap-3">
       <div className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden">
         <img src={theme === "light" ? logo : logoDark} alt="花狮心理logo" className="w-6 h-6 object-contain" />
       </div>

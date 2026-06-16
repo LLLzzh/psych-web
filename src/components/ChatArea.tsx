@@ -7,7 +7,11 @@ import teacherAvatar from "../assets/teacher-avatar.png";
 const DEFAULT_BOTTOM_INSET = 128;
 const BOTTOM_GAP = 16;
 
-export function ChatArea() {
+interface ChatAreaProps {
+  isDesktopLayout: boolean;
+}
+
+export function ChatArea({ isDesktopLayout }: ChatAreaProps) {
   const { messages } = useChatStore();
   const { theme } = useConfigStore();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -106,7 +110,9 @@ export function ChatArea() {
   return (
     <div
       ref={scrollContainerRef}
-      className="flex-1 overflow-y-auto pt-20 px-4 md:pt-25 md:pr-33 md:pl-25"
+      className={`flex-1 overflow-y-auto ${
+        isDesktopLayout ? "pt-25 pr-33 pl-25" : "pt-20 px-4"
+      }`}
       style={{
         paddingBottom: `${bottomInset}px`,
         scrollPaddingBottom: `${bottomInset}px`,
@@ -131,10 +137,16 @@ export function ChatArea() {
                   <img
                     src={teacherAvatar}
                     alt="老师头像"
-                    className="w-8 h-8 rounded-full object-cover mr-2 mt-1 md:hidden"
+                    className={`w-8 h-8 rounded-full object-cover mr-2 mt-1 ${
+                      isDesktopLayout ? "hidden" : ""
+                    }`}
                   />
                 )}
-                <MessageBubble message={message} theme={theme} />
+                <MessageBubble
+                  message={message}
+                  theme={theme}
+                  isDesktopLayout={isDesktopLayout}
+                />
               </div>
             ))}
           </div>

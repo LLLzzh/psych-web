@@ -25,6 +25,7 @@ interface MobileVoiceChatOverlayProps {
   onStartASR: () => Promise<boolean>;
   onStopASR: () => Promise<void>;
   isRecording: boolean;
+  isMobileLayout: boolean;
 }
 
 export function MobileVoiceChatOverlay({
@@ -36,6 +37,7 @@ export function MobileVoiceChatOverlay({
   onStartASR,
   onStopASR,
   isRecording,
+  isMobileLayout,
 }: MobileVoiceChatOverlayProps) {
   const messages = useChatStore((state) => state.messages);
   const addMessage = useChatStore((state) => state.addMessage);
@@ -106,12 +108,12 @@ export function MobileVoiceChatOverlay({
     }
   };
 
-  if (!isVisible) {
+  if (!isVisible || !isMobileLayout) {
     return null;
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col md:hidden">
+    <div className="fixed inset-0 z-50 flex flex-col">
       <Background themeOverride="dark" mobileOnly />
 
       <div className="absolute inset-4 rounded-[20px] overflow-hidden">

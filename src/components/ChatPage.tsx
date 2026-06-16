@@ -12,10 +12,20 @@ import { Background } from "./Background";
 import { MobileVoiceChatOverlay } from "./MobileVoiceChatOverlay";
 import { CONFIG } from "../config";
 import { pathLogin, pathRecords } from "../paths";
+import { useDeviceLayoutOverride, type DeviceLayoutMode } from "../hooks/useDeviceLayoutOverride";
 import { useNavigate, useParams } from "react-router-dom";
 import { message } from "antd";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { useConfigStore } from "../store/configStore";
+
+const HIDDEN_LAYOUT_SWITCH_HOT_ZONE_SIZE = 44;
+const HIDDEN_LAYOUT_SWITCH_TAP_COUNT = 5;
+const HIDDEN_LAYOUT_SWITCH_TIMEOUT_MS = 2000;
+const DEVICE_LAYOUT_MODE_LABEL: Record<DeviceLayoutMode, string> = {
+  auto: "自动布局",
+  mobile: "强制移动端",
+  desktop: "强制 PC 端",
+};
 
 function ChatPage() {
   const navigate = useNavigate();
@@ -30,12 +40,18 @@ function ChatPage() {
   const [enterVoiceModeSignal, setEnterVoiceModeSignal] = useState(0);
   const [isMobileVoiceMode, setIsMobileVoiceMode] = useState(false);
   const [isMobileRecording, setIsMobileRecording] = useState(false);
+  const {
+    isDesktopLayout,
+    isMobileLayout,
+    cycleMode: cycleDeviceLayoutMode,
+  } = useDeviceLayoutOverride();
   
   const hasConversationStartedRef = useRef(false);
   const isConnectedRef = useRef(false);
   const isAuthenticatedRef = useRef(false);
   const currentConversationIdRef = useRef<string | null>(null);
   const startConversationPromiseRef = useRef<Promise<boolean> | null>(null);
+  const hiddenLayoutSwitchTapRef = useRef({ count: 0, lastTappedAt: 0 });
   useEffect(() => {
     hasConversationStartedRef.current = hasConversationStarted;
   }, [hasConversationStarted]);
@@ -255,6 +271,36 @@ function ChatPage() {
     setIsMobileRecording(false);
   }, [stopASR]);
 
+  const handleHiddenLayoutSwitchPointerDown = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      const inHotZone =
+        event.clientX >= window.innerWidth - HIDDEN_LAYOUT_SWITCH_HOT_ZONE_SIZE &&
+        event.clientY <= HIDDEN_LAYOUT_SWITCH_HOT_ZONE_SIZE;
+
+      if (!inHotZone) {
+        return;
+      }
+
+      const now = Date.now();
+      const tapState = hiddenLayoutSwitchTapRef.current;
+      tapState.count =
+        now - tapState.lastTappedAt > HIDDEN_LAYOUT_SWITCH_TIMEOUT_MS
+          ? 1
+          : tapState.count + 1;
+      tapState.lastTappedAt = now;
+
+      if (tapState.count < HIDDEN_LAYOUT_SWITCH_TAP_COUNT) {
+        return;
+      }
+
+      const nextMode = cycleDeviceLayoutMode();
+      tapState.count = 0;
+      tapState.lastTappedAt = 0;
+      message.success(`已切换为${DEVICE_LAYOUT_MODE_LABEL[nextMode]}`);
+    },
+    [cycleDeviceLayoutMode]
+  );
+
   const isTTSPlaying = useChatStore((state) => state.isTTSPlaying);
 
   // 使用消息发送 hook
@@ -266,10 +312,13 @@ function ChatPage() {
   const handleErrorClose = error ? clearError : () => {};
 
   return (
-    <div className="relative w-full h-screen overflow-hidden font-sans">
-      <Background mobileLightOnly />
-      <div className="relative z-10 flex w-full h-full flex-col md:flex-row">
-        <div className="fixed top-0 left-0 right-0 z-20 md:static md:z-auto">
+    <div
+      className="relative w-full h-screen overflow-hidden font-sans"
+      onPointerDownCapture={handleHiddenLayoutSwitchPointerDown}
+    >
+      <Background mobileLightOnly isDesktopLayout={isDesktopLayout} />
+      <div className={`relative z-10 flex w-full h-full ${isDesktopLayout ? "flex-row" : "flex-col"}`}>
+        <div className={isDesktopLayout ? "static z-auto" : "fixed top-0 left-0 right-0 z-20"}>
           <Sidebar
             isConnected={isConnected}
             isAuthenticated={isAuthenticated}
@@ -282,41 +331,42 @@ function ChatPage() {
             onClearMessages={clearMessages}
             collapsed={isSidebarCollapsed}
             onToggle={toggleSidebar}
+            isDesktopLayout={isDesktopLayout}
           />
         </div>
 
         <div className="flex-1 flex flex-col h-full relative">
 
           {displayError && (
-            <div className="absolute top-20 md:top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-4">
+            <div className={`absolute ${isDesktopLayout ? "top-4" : "top-20"} left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-4`}>
               <ErrorMessage message={displayError} onClose={handleErrorClose} />
             </div>
           )}
           {showConnectingNotice && (
-            <div className="absolute top-20 md:top-4 left-1/2 -translate-x-1/2 z-40 rounded-full px-4 py-2 text-sm text-white bg-black/35 backdrop-blur-sm">
+            <div className={`absolute ${isDesktopLayout ? "top-4" : "top-20"} left-1/2 -translate-x-1/2 z-40 rounded-full px-4 py-2 text-sm text-white bg-black/35 backdrop-blur-sm`}>
               连接中，请稍候...
             </div>
           )}
 
           <div
             className={`relative z-10 flex-1 min-h-0 overflow-hidden flex flex-col ${
-              theme === "dark" ? "md:px-[53px] md:py-[42px]" : ""
+              theme === "dark" && isDesktopLayout ? "px-[53px] py-[42px]" : ""
             }`}
           >
             <div
               className={`flex min-h-0 flex-1 ${
-                theme === "dark"
-                  ? "md:rounded-[50px] md:bg-[rgba(0,0,0,0.2)] md:backdrop-blur-[15px] md:overflow-hidden"
+                theme === "dark" && isDesktopLayout
+                  ? "rounded-[50px] bg-[rgba(0,0,0,0.2)] backdrop-blur-[15px] overflow-hidden"
                   : ""
               }`}
             >
-              <ChatArea />
+              <ChatArea isDesktopLayout={isDesktopLayout} />
             </div>
           </div>
 
           <div
             id="chat-input-container"
-            className="fixed bottom-0 left-0 w-full z-20 md:absolute md:z-10"
+            className={`${isDesktopLayout ? "absolute z-10" : "fixed z-20"} bottom-0 left-0 w-full`}
           >
             <InputArea
                 onSendText={sendMessage}
@@ -326,6 +376,7 @@ function ChatPage() {
                 endConversationSignal={endConversationSignal}
                 enterVoiceModeSignal={enterVoiceModeSignal}
                 onVoiceModeChange={handleVoiceModeChange}
+                isDesktopLayout={isDesktopLayout}
             />
           </div>
         </div>
@@ -340,6 +391,7 @@ function ChatPage() {
         onStartASR={handleMobileStartASR}
         onStopASR={handleMobileStopASR}
         isRecording={isMobileRecording}
+        isMobileLayout={isMobileLayout}
       />
     </div>
   );
