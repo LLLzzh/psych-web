@@ -141,7 +141,7 @@ export function MobileVoiceChatOverlay({
           </h1>
 
           <div className="flex-1 flex flex-col items-center min-h-0">
-            <div className="relative w-[90%] max-h-[467px] rounded-2xl overflow-hidden shadow-lg">
+            <div className="mobile-teacher-card relative w-[90%] max-h-[467px] rounded-2xl overflow-hidden shadow-lg">
               <img
                 src={teacherImage}
                 alt="张老师"  

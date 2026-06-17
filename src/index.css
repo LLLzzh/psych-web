@@ -20,11 +20,13 @@ body {
 }
 
 @keyframes voice-wave {
+
   0%,
   100% {
     transform: scaleY(0.35);
     opacity: 0.45;
   }
+
   50% {
     transform: scaleY(1);
     opacity: 1;
@@ -36,12 +38,26 @@ body {
   animation: voice-wave 1.2s ease-in-out infinite;
 }
 
+@media (min-width: 768px) and (orientation: portrait) {
+  .mobile-teacher-card {
+    width: min(82vw, calc(64dvh * 4 / 5));
+    max-height: none;
+    aspect-ratio: 4 / 5;
+  }
+
+  .mobile-teacher-card>img {
+    object-position: top;
+  }
+}
+
 @keyframes voice-wave-slow {
+
   0%,
   100% {
     transform: scaleY(0.5);
     opacity: 0.6;
   }
+
   50% {
     transform: scaleY(1);
     opacity: 1;
@@ -54,28 +70,34 @@ body {
 }
 
 @keyframes background-rotate-1 {
+
   0%,
   45% {
     opacity: 1;
   }
+
   50%,
   95% {
     opacity: 0;
   }
+
   100% {
     opacity: 1;
   }
 }
 
 @keyframes background-rotate-2 {
+
   0%,
   45% {
     opacity: 0;
   }
+
   50%,
   95% {
     opacity: 1;
   }
+
   100% {
     opacity: 0;
   }
