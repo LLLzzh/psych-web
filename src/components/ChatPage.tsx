@@ -1,6 +1,10 @@
 import { useChat } from "../hooks/useChat";
 import { useSendMessage } from "../hooks/useSendMessage";
-import { stopTTSPlayback, useChatStore } from "../store/chatStore";
+import {
+  stopTTSPlayback,
+  useChatStore,
+  type ChatMessage,
+} from "../store/chatStore";
 import { useAuthStore } from "../store/authStore";
 import { createConversation } from "../apis/conversation";
 import { getModelAndBgImage } from "../apis/config";
@@ -10,13 +14,19 @@ import { InputArea } from "./InputArea";
 import { ErrorMessage } from "./ErrorMessage";
 import { Background } from "./Background";
 import { MobileVoiceChatOverlay } from "./MobileVoiceChatOverlay";
+import { ConversationSwitcher } from "./ConversationSwitcher";
 import { CONFIG } from "../config";
 import { pathLogin, pathRecords } from "../paths";
 import { useDeviceLayoutOverride, type DeviceLayoutMode } from "../hooks/useDeviceLayoutOverride";
+import {
+  CURRENT_CONVERSATION_KEY,
+  useConversationSwitcher,
+} from "../hooks/useConversationSwitcher";
 import { useNavigate, useParams } from "react-router-dom";
 import { message } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { useConfigStore } from "../store/configStore";
+import { MESSAGE_ROLE } from "../types/conversation";
 
 const HIDDEN_LAYOUT_SWITCH_HOT_ZONE_SIZE = 44;
 const HIDDEN_LAYOUT_SWITCH_TAP_COUNT = 5;
@@ -40,11 +50,32 @@ function ChatPage() {
   const [enterVoiceModeSignal, setEnterVoiceModeSignal] = useState(0);
   const [isMobileVoiceMode, setIsMobileVoiceMode] = useState(false);
   const [isMobileRecording, setIsMobileRecording] = useState(false);
+  const [hasUnreadCurrent, setHasUnreadCurrent] = useState(false);
   const {
     isDesktopLayout,
     isMobileLayout,
     cycleMode: cycleDeviceLayoutMode,
   } = useDeviceLayoutOverride();
+  const liveMessages = useChatStore((state) => state.messages);
+  const previousLiveMessageCountRef = useRef(liveMessages.length);
+  const {
+    conversationList,
+    listPagination,
+    isListLoading,
+    listError,
+    view: conversationView,
+    historyMessages,
+    isHistoryLoading,
+    historyError,
+    pendingConversationId,
+    refreshConversationList,
+    loadMoreConversationList,
+    selectHistoryConversation,
+    selectCurrentConversation,
+  } = useConversationSwitcher({
+    enabled: isDesktopLayout,
+    currentConversationId,
+  });
   
   const hasConversationStartedRef = useRef(false);
   const isConnectedRef = useRef(false);
@@ -59,6 +90,37 @@ function ChatPage() {
   useEffect(() => {
     currentConversationIdRef.current = currentConversationId;
   }, [currentConversationId]);
+
+  const isHistoryMode = conversationView.mode === "history";
+  const activeConversationId =
+    conversationView.mode === "history"
+      ? conversationView.conversationId
+      : CURRENT_CONVERSATION_KEY;
+  const currentConversationTitle = useMemo(() => {
+    const firstUserMessage = liveMessages.find(
+      (chatMessage) =>
+        chatMessage.type === "user" && chatMessage.content.trim().length > 0
+    );
+    return firstUserMessage?.content.trim() || "新对话";
+  }, [liveMessages]);
+  const historyDisplayMessages = useMemo<ChatMessage[]>(() => {
+    if (conversationView.mode !== "history") {
+      return [];
+    }
+    return historyMessages.map((item) => ({
+      id: `history-${conversationView.conversationId}-${item.index}`,
+      type: item.role === MESSAGE_ROLE.STUDENT ? "user" : "assistant",
+      content: item.content,
+      timestamp: item.index,
+    }));
+  }, [conversationView, historyMessages]);
+  const displayedMessages = isHistoryMode
+    ? historyDisplayMessages
+    : liveMessages;
+  const displayedViewKey =
+    conversationView.mode === "history"
+      ? `history:${conversationView.conversationId}`
+      : CURRENT_CONVERSATION_KEY;
 
   const wsAuthInfo = useMemo(
     () => ({
@@ -116,6 +178,25 @@ function ChatPage() {
   useEffect(() => {
     isAuthenticatedRef.current = isAuthenticated;
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    const previousCount = previousLiveMessageCountRef.current;
+    if (isHistoryMode && liveMessages.length > previousCount) {
+      setHasUnreadCurrent(true);
+    } else if (!isHistoryMode) {
+      setHasUnreadCurrent(false);
+    }
+    previousLiveMessageCountRef.current = liveMessages.length;
+  }, [isHistoryMode, liveMessages.length]);
+
+  useEffect(() => {
+    if (historyError) {
+      message.error({
+        content: "对话加载失败，请重新点击该记录重试",
+        key: "conversation-history-error",
+      });
+    }
+  }, [historyError]);
 
   // 监听 WebSocket 错误，处理认证失败
   useEffect(() => {
@@ -216,6 +297,7 @@ function ChatPage() {
 
   const handleLogout = () => {
     clearAuth();
+    selectCurrentConversation();
     setCurrentConversationId(null);
     currentConversationIdRef.current = null;
     navigate(pathLogin(unitUri));
@@ -232,6 +314,8 @@ function ChatPage() {
     void stopASR();
     clearMessages();
     clearError();
+    selectCurrentConversation();
+    setHasUnreadCurrent(false);
     setHasConversationStarted(false);
     setCurrentConversationId(null);
     currentConversationIdRef.current = null;
@@ -239,7 +323,24 @@ function ChatPage() {
     setIsMobileRecording(false);
 
     message.success("对话已结束");
+    window.setTimeout(() => {
+      void refreshConversationList();
+    }, 300);
   };
+
+  const handleSelectCurrentConversation = useCallback(() => {
+    selectCurrentConversation();
+    setHasUnreadCurrent(false);
+  }, [selectCurrentConversation]);
+
+  const handleSelectHistoryConversation = useCallback(
+    (conversationId: string) => {
+      setEndConversationSignal((previous) => previous + 1);
+      void stopASR();
+      void selectHistoryConversation(conversationId);
+    },
+    [selectHistoryConversation, stopASR]
+  );
 
   const handleVoiceModeChange = useCallback((isVoiceMode: boolean) => {
     setIsMobileVoiceMode(isVoiceMode);
@@ -354,13 +455,19 @@ function ChatPage() {
             }`}
           >
             <div
-              className={`flex min-h-0 flex-1 ${
+              className={`relative flex min-h-0 flex-1 ${
                 theme === "dark" && isDesktopLayout
                   ? "rounded-[50px] bg-[rgba(0,0,0,0.2)] backdrop-blur-[15px] overflow-hidden"
                   : ""
               }`}
             >
-              <ChatArea isDesktopLayout={isDesktopLayout} />
+              <ChatArea
+                isDesktopLayout={isDesktopLayout}
+                messages={displayedMessages}
+                viewKey={displayedViewKey}
+                isHistoryMode={isHistoryMode}
+                isLoading={isHistoryLoading}
+              />
             </div>
           </div>
 
@@ -368,7 +475,18 @@ function ChatPage() {
             id="chat-input-container"
             className={`${isDesktopLayout ? "absolute z-10" : "fixed z-20"} bottom-0 left-0 w-full`}
           >
-            <InputArea
+            {isDesktopLayout && isHistoryMode ? (
+              <div className="flex h-36 items-end justify-center pb-8">
+                <button
+                  type="button"
+                  onClick={handleSelectCurrentConversation}
+                  className="rounded-full bg-[linear-gradient(90deg,#86B9FF_0%,#8185FF_100%)] px-7 py-3.5 text-sm font-medium text-white shadow-[0_12px_30px_rgba(130,137,247,0.25)] transition-transform duration-200 hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8185FF] focus-visible:ring-offset-2 motion-reduce:transition-none"
+                >
+                  返回当前对话
+                </button>
+              </div>
+            ) : (
+              <InputArea
                 onSendText={sendMessage}
                 onStartASR={startASRWithAutoStart}
                 onStopASR={stopASR}
@@ -377,10 +495,33 @@ function ChatPage() {
                 enterVoiceModeSignal={enterVoiceModeSignal}
                 onVoiceModeChange={handleVoiceModeChange}
                 isDesktopLayout={isDesktopLayout}
-            />
+              />
+            )}
           </div>
         </div>
       </div>
+
+      {isDesktopLayout && (
+        <ConversationSwitcher
+          theme={theme}
+          conversations={conversationList}
+          activeConversationId={activeConversationId}
+          currentTitle={currentConversationTitle}
+          hasUnreadCurrent={hasUnreadCurrent}
+          isListLoading={isListLoading}
+          listError={listError}
+          hasMore={listPagination.hasNext}
+          pendingConversationId={pendingConversationId}
+          onSelectConversation={handleSelectHistoryConversation}
+          onSelectCurrent={handleSelectCurrentConversation}
+          onLoadMore={() => {
+            void loadMoreConversationList();
+          }}
+          onRetryList={() => {
+            void refreshConversationList();
+          }}
+        />
+      )}
 
       <MobileVoiceChatOverlay
         isVisible={isMobileVoiceMode}

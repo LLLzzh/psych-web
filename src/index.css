@@ -110,3 +110,136 @@ body {
 .background-rotate-2 {
   animation: background-rotate-2 12s ease-in-out infinite;
 }
+
+@keyframes conversation-view-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(9px);
+    filter: blur(1.5px);
+  }
+}
+
+@keyframes conversation-view-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-9px);
+    filter: blur(1.5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes conversation-marker-loading {
+  0%,
+  100% {
+    background-position: 100% 0;
+  }
+
+  50% {
+    background-position: 0 0;
+  }
+}
+
+.conversation-view-transition[data-transition-stage="exit"] {
+  animation: conversation-view-exit 220ms ease-in forwards;
+}
+
+.conversation-view-transition[data-transition-stage="enter"] {
+  animation: conversation-view-enter 260ms cubic-bezier(0.22, 1, 0.36, 1)
+    both;
+}
+
+.conversation-switcher-scroll {
+  scrollbar-width: none;
+  padding: 6px 8px;
+  transition: padding 180ms ease;
+}
+
+.conversation-switcher-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.conversation-switcher {
+  position: fixed;
+  right: clamp(12px, 1.5vw, 24px);
+  top: 0;
+  bottom: 0;
+  z-index: 30;
+  width: 56px;
+  height: fit-content;
+  margin-block: auto;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 18px;
+  background: transparent;
+  box-shadow: none;
+  transition:
+    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    backdrop-filter 180ms ease;
+}
+
+.conversation-switcher:hover,
+.conversation-switcher:focus-within {
+  width: clamp(250px, 20vw, 310px);
+}
+
+.conversation-switcher-light:hover,
+.conversation-switcher-light:focus-within {
+  background: #fff;
+  box-shadow: 4px 12px 32px rgba(156, 178, 218, 0.12);
+}
+
+.conversation-switcher-dark:hover,
+.conversation-switcher-dark:focus-within {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.58);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(25px);
+}
+
+.conversation-switcher:hover .conversation-switcher-scroll,
+.conversation-switcher:focus-within .conversation-switcher-scroll {
+  padding-right: 14px;
+  padding-left: 14px;
+}
+
+.conversation-switcher-title {
+  opacity: 0;
+  transform: translateX(6px);
+  transition:
+    opacity 140ms ease,
+    transform 180ms ease,
+    color 200ms ease;
+}
+
+.conversation-switcher:hover .conversation-switcher-title,
+.conversation-switcher:focus-within .conversation-switcher-title {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conversation-view-transition[data-transition-stage="exit"],
+  .conversation-view-transition[data-transition-stage="enter"] {
+    animation: none;
+  }
+
+  .conversation-switcher,
+  .conversation-switcher-scroll,
+  .conversation-switcher-title {
+    transition: none;
+  }
+}
