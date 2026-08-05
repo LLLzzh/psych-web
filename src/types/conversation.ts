@@ -12,6 +12,9 @@ export interface ConversationListItem {
   brief: string;
   createTime: number;
   updateTime: number;
+  characterId?: string;
+  characterName?: string;
+  characterImage?: string;
 }
 
 export const MESSAGE_ROLE = {

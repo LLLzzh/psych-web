@@ -34,6 +34,7 @@ export interface UserInfo {
     codeValue?: string;
     studentId?: string;
     conversationId?: string;
+    characterId?: string;
 }
 
 export interface UserInfoResponse {

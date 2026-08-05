@@ -60,7 +60,10 @@ export const CONFIG = {
     ? env.VITE_XH_ENV.trim()
     : "test") as string,
   /** 访问 /、/login、/chat 等旧路径时使用的机构 URI 段（与链接 /{uri}/login 中一致） */
-  DEFAULT_UNIT_URI: "",
+  DEFAULT_UNIT_URI:
+    typeof env.VITE_DEFAULT_UNIT_URI === "string"
+      ? env.VITE_DEFAULT_UNIT_URI.trim().replace(/^\/+|\/+$/g, "")
+      : "",
   USE_MOCK: false,
   USE_CONVERSATION_MOCK: false,
   PLAY_LOCAL_RECORDING: false,

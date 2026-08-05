@@ -138,7 +138,19 @@ function normalizeGetConversationListResponse(
   const r = raw as GetConversationListResponse & {
     data?: Pick<GetConversationListResponse, "conversationList" | "pagination">;
   };
-  const list = r.conversationList ?? r.data?.conversationList ?? [];
+  const list = (r.conversationList ?? r.data?.conversationList ?? []).map(
+    (item) => {
+      const extended = item as ConversationListItem & {
+        character?: { id?: string; name?: string; image?: string };
+      };
+      return {
+        ...item,
+        characterId: item.characterId ?? extended.character?.id,
+        characterName: item.characterName ?? extended.character?.name,
+        characterImage: item.characterImage ?? extended.character?.image,
+      };
+    }
+  );
   const pag = normalizePaginationInfo(
     r.pagination ?? r.data?.pagination,
     DEFAULT_LIMIT

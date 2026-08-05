@@ -4,6 +4,7 @@ import { Background } from "./Background";
 import { CONFIG } from "../config";
 import defaultTeacherImage from "../assets/teacher.png";
 import { useConfigStore } from "../store/configStore";
+import { useCharacterStore } from "../store/characterStore";
 import user from "../assets/user.svg";
 import recordsIcon from "../assets/records-dark.svg";
 import switchIcon from "../assets/switch.svg";
@@ -44,7 +45,12 @@ export function MobileVoiceChatOverlay({
   const volumeLevel = useChatStore((state) => state.volumeLevel);
   const isUserSpeaking = useChatStore((state) => state.isSpeaking);
   const { modelView } = useConfigStore();
-  const teacherImage = modelView || defaultTeacherImage;
+  const selectedCharacter = useCharacterStore((state) => state.selectedCharacter);
+  const teacherImage =
+    selectedCharacter?.fallbackImage ||
+    selectedCharacter?.image ||
+    modelView ||
+    defaultTeacherImage;
 
   const [mockSpeaking, setMockSpeaking] = useState(false);
   const mockTimerRef = useRef<number | null>(null);

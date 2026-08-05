@@ -1,6 +1,7 @@
 import defaultTeacherImage from "../assets/teacher.png";
 import { SidebarActionButton } from "./SidebarActionButton";
 import { useConfigStore } from "../store/configStore";
+import { useCharacterStore } from "../store/characterStore";
 
 type ThemeMode = "light" | "dark";
 
@@ -20,6 +21,7 @@ export function SidebarDesktopContent({
   onViewConversationRecords,
 }: SidebarDesktopContentProps) {
   const { modelView } = useConfigStore();
+  const selectedCharacter = useCharacterStore((state) => state.selectedCharacter);
   const teacherImage = modelView || defaultTeacherImage;
 
   return (
@@ -36,6 +38,10 @@ export function SidebarDesktopContent({
             className="w-full object-cover object-top"
             style={{ height: "clamp(8rem, calc(100vh - 26.5rem), 25rem)" }}
           />
+        </div>
+        <div className={`px-1 text-center ${theme === "light" ? "text-[#1D2233]" : "text-white"}`}>
+          <div className="font-medium">{selectedCharacter?.name || "心理老师"}</div>
+          <div className="mt-1 text-xs opacity-60">正在陪伴你</div>
         </div>
         <SidebarActionButton
           collapsed={collapsed}

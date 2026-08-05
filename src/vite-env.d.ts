@@ -4,6 +4,9 @@ interface ImportMetaEnv {
   readonly VITE_API_BASE_URL: string;
   readonly VITE_WS_URL: string;
   readonly VITE_XH_ENV?: string;
+  readonly VITE_DEFAULT_UNIT_URI?: string;
+  readonly VITE_CHARACTER_SELECTION_MOCK?: string;
+  readonly VITE_STATIC_CDN_BASE_URL: string;
 }
 
 interface ImportMeta {

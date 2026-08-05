@@ -6,14 +6,16 @@ import { useAuthStore } from "../store/authStore"
 import logoDark from "../assets/logo-dark.png"
 import { CONFIG } from "../config"
 import { getUnitIdByUri } from "../apis/config"
-import { pathChat } from "../paths"
+import { pathCharacters } from "../paths"
 import { Background } from "./Background"
+import { useCharacterStore } from "../store/characterStore"
 
 function Login() {
     const navigate = useNavigate();
     const { unitUri: unitUriParam } = useParams<{ unitUri: string }>();
     const unitUri = unitUriParam ?? CONFIG.DEFAULT_UNIT_URI;
     const setAuth = useAuthStore((state) => state.setAuth);
+    const clearSelectedCharacter = useCharacterStore((state) => state.clearSelectedCharacter);
     const [authId, setAuthId] = useState("");
     const [verifyCode, setVerifyCode] = useState("");
     const [loading, setLoading] = useState(false);
@@ -75,8 +77,9 @@ function Login() {
 
 
                 if (info.userId && token) {
+                    clearSelectedCharacter();
                     setAuth(info.userId, token, info);
-                    navigate(pathChat(unitUri));
+                    navigate(pathCharacters(unitUri));
                 } else {
                     antMessage.error("登录成功但返回数据格式异常");
                 }

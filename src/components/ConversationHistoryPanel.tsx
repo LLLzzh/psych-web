@@ -12,6 +12,8 @@ interface ConversationHistoryPanelProps {
   isLoading: boolean;
   error: string | null;
   onLoadMore: () => void;
+  characterName?: string;
+  characterImage?: string;
 }
 
 export function ConversationHistoryPanel({
@@ -21,6 +23,8 @@ export function ConversationHistoryPanel({
   isLoading,
   error,
   onLoadMore,
+  characterName,
+  characterImage,
 }: ConversationHistoryPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -47,6 +51,7 @@ export function ConversationHistoryPanel({
 
   return (
     <section
+      aria-label={`${characterName || "心理老师"}的对话详情`}
       className={`flex h-full min-h-0 flex-col rounded-[10px] overflow-hidden ${
         theme === "light"
           ? "bg-white shadow-sm"
@@ -108,7 +113,7 @@ export function ConversationHistoryPanel({
                 >
                   {!isStudent && (
                     <img
-                      src={teacherAvatar}
+                      src={characterImage || teacherAvatar}
                       alt="老师头像"
                       className="w-8 h-8 rounded-full object-cover mr-2 shrink-0"
                     />

@@ -11,12 +11,13 @@ import { ErrorMessage } from "./ErrorMessage";
 import { Background } from "./Background";
 import { MobileVoiceChatOverlay } from "./MobileVoiceChatOverlay";
 import { CONFIG } from "../config";
-import { pathLogin, pathRecords } from "../paths";
+import { pathCharacters, pathLogin, pathRecords } from "../paths";
 import { useDeviceLayoutOverride, type DeviceLayoutMode } from "../hooks/useDeviceLayoutOverride";
 import { useNavigate, useParams } from "react-router-dom";
 import { message } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { useConfigStore } from "../store/configStore";
+import { useCharacterStore } from "../store/characterStore";
 
 const HIDDEN_LAYOUT_SWITCH_HOT_ZONE_SIZE = 44;
 const HIDDEN_LAYOUT_SWITCH_TAP_COUNT = 5;
@@ -31,6 +32,7 @@ function ChatPage() {
   const navigate = useNavigate();
   const { unitUri = CONFIG.DEFAULT_UNIT_URI } = useParams<{ unitUri: string }>();
   const { userId, token, info, clearAuth } = useAuthStore();
+  const { selectedCharacter, clearSelectedCharacter } = useCharacterStore();
   const { theme, setBackgroundImage, setModelView } = useConfigStore();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [hasShownConnected, setHasShownConnected] = useState(false);
@@ -64,8 +66,11 @@ function ChatPage() {
     () => ({
       ...(info || { userId: "", unitId: "", studentId: "" }),
       ...(currentConversationId ? { conversationId: currentConversationId } : {}),
+      ...(selectedCharacter
+        ? { characterId: selectedCharacter.backendCharacterId ?? selectedCharacter.id }
+        : {}),
     }),
-    [info, currentConversationId]
+    [info, currentConversationId, selectedCharacter]
   );
 
   const toggleSidebar = () => {
@@ -85,12 +90,17 @@ function ChatPage() {
     getModelAndBgImage(unitId)
       .then((res) => {
         if (res.data?.backgroundImage) setBackgroundImage(res.data.backgroundImage);
-        if (res.data?.modelView) setModelView(res.data.modelView);
+        setModelView(
+          selectedCharacter?.fallbackImage ||
+            selectedCharacter?.image ||
+            res.data?.modelView ||
+            ""
+        );
       })
       .catch((err) => {
         console.error("获取背景图和教师形象失败:", err);
       });
-  }, [info?.unitId, setBackgroundImage, setModelView]);
+  }, [info?.unitId, selectedCharacter?.image, setBackgroundImage, setModelView]);
 
   const {
     sendText,
@@ -148,6 +158,9 @@ function ChatPage() {
         clearError();
         let conversationId = currentConversationIdRef.current;
         if (!conversationId) {
+          if (!selectedCharacter?.id) {
+            throw new Error("characterId is empty");
+          }
           const response = await createConversation();
           conversationId = response.conversationId;
           if (!conversationId) {
@@ -185,7 +198,7 @@ function ChatPage() {
     const ok = await startPromise;
     startConversationPromiseRef.current = null;
     return ok;
-  }, [clearError]);
+  }, [clearError, selectedCharacter?.id]);
 
   useEffect(() => {
     if (!isConnecting) {
@@ -216,6 +229,7 @@ function ChatPage() {
 
   const handleLogout = () => {
     clearAuth();
+    clearSelectedCharacter();
     setCurrentConversationId(null);
     currentConversationIdRef.current = null;
     navigate(pathLogin(unitUri));
@@ -237,8 +251,17 @@ function ChatPage() {
     currentConversationIdRef.current = null;
     setIsMobileVoiceMode(false);
     setIsMobileRecording(false);
+    clearSelectedCharacter();
 
     message.success("对话已结束");
+    navigate(pathCharacters(unitUri), { replace: true });
+  };
+
+  const handleViewConversationRecords = () => {
+    stopTTSPlayback();
+    void stopASR();
+    clearSelectedCharacter();
+    navigate(pathRecords(unitUri));
   };
 
   const handleVoiceModeChange = useCallback((isVoiceMode: boolean) => {
@@ -326,7 +349,7 @@ function ChatPage() {
             isConnecting={isConnecting}
             onLogout={handleLogout}
             onEndConversation={handleEndConversation}
-            onViewConversationRecords={() => navigate(pathRecords(unitUri))}
+            onViewConversationRecords={handleViewConversationRecords}
             onEnterVoiceMode={handleEnterVoiceMode}
             onClearMessages={clearMessages}
             collapsed={isSidebarCollapsed}
@@ -385,7 +408,7 @@ function ChatPage() {
       <MobileVoiceChatOverlay
         isVisible={isMobileVoiceMode}
         onClose={handleCloseMobileVoiceOverlay}
-        onViewConversationRecords={() => navigate(pathRecords(unitUri))}
+        onViewConversationRecords={handleViewConversationRecords}
         onSwitchToChatMode={handleCloseMobileVoiceOverlay}
         isSpeaking={isTTSPlaying}
         onStartASR={handleMobileStartASR}

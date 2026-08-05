@@ -141,6 +141,22 @@ export function ConversationListPanel({
                   }`}>
                     {item.brief || "新对话"}
                   </div>
+                  {item.characterName && (
+                    <div className="mt-1 flex items-center gap-1.5">
+                      {item.characterImage && (
+                        <img
+                          src={item.characterImage}
+                          alt=""
+                          className="h-4 w-4 rounded-full object-cover"
+                        />
+                      )}
+                      <span className={`text-[11px] ${
+                        theme === "light" ? "text-[#7D83A0]" : "text-white/55"
+                      }`}>
+                        {item.characterName}
+                      </span>
+                    </div>
+                  )}
                   <div className={`mt-1 text-[11px] ${
                     theme === "light" ? "text-gray-400" : "text-white/45"
                   }`}>

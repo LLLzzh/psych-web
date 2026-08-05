@@ -3,6 +3,7 @@ import { useConfigStore } from "../store/configStore";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MessageBubble } from "./MessageBubble";
 import teacherAvatar from "../assets/teacher-avatar.png";
+import { useCharacterStore } from "../store/characterStore";
 
 const DEFAULT_BOTTOM_INSET = 128;
 const BOTTOM_GAP = 16;
@@ -14,6 +15,8 @@ interface ChatAreaProps {
 export function ChatArea({ isDesktopLayout }: ChatAreaProps) {
   const { messages } = useChatStore();
   const { theme } = useConfigStore();
+  const selectedCharacter = useCharacterStore((state) => state.selectedCharacter);
+  const assistantAvatar = selectedCharacter?.image || teacherAvatar;
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [bottomInset, setBottomInset] = useState(DEFAULT_BOTTOM_INSET);
@@ -135,7 +138,7 @@ export function ChatArea({ isDesktopLayout }: ChatAreaProps) {
               >
                 {message.type !== "user" && (
                   <img
-                    src={teacherAvatar}
+                    src={assistantAvatar}
                     alt="老师头像"
                     className={`w-8 h-8 rounded-full object-cover mr-2 mt-1 ${
                       isDesktopLayout ? "hidden" : ""

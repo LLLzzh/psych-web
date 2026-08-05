@@ -7,7 +7,7 @@ import { ConversationHistoryPanel } from "./ConversationHistoryPanel";
 import { useConversationRecords } from "../hooks/useConversationRecords";
 import { useConfigStore } from "../store/configStore";
 import { CONFIG } from "../config";
-import { pathChat } from "../paths";
+import { pathCharacters } from "../paths";
 
 function ConversationRecordsPage() {
   const navigate = useNavigate();
@@ -33,6 +33,9 @@ function ConversationRecordsPage() {
   const selectedBrief = conversationList.find(
     (c) => c.conversationId === selectedConversationId
   )?.brief;
+  const selectedConversation = conversationList.find(
+    (c) => c.conversationId === selectedConversationId
+  );
 
   const handleSelectConversation = useCallback(
     (conversationId: string) => {
@@ -114,7 +117,7 @@ function ConversationRecordsPage() {
               {/* Back Button */}
               <button
                 type="button"
-                onClick={() => navigate(pathChat(unitUri))}
+                onClick={() => navigate(pathCharacters(unitUri))}
                 className="flex items-center gap-2 px-4 py-2 rounded-[10px] text-sm font-medium transition-all bg-gradient-to-r from-[#96C0FF] to-[#8686FF] text-white hover:opacity-90"
               >
                 <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -157,6 +160,8 @@ function ConversationRecordsPage() {
                 onLoadMore={() => {
                   void loadMoreHistory();
                 }}
+                characterName={selectedConversation?.characterName}
+                characterImage={selectedConversation?.characterImage}
               />
             </div>
           </div>
