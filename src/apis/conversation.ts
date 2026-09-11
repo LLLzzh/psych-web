@@ -15,7 +15,7 @@ import type {
 const CONVERSATION_API = {
   create: "/conversation/create",
   list: "/conversation/list",
-  history: "/conversation/get_single",
+  history: "/conversation/get_by_date",
   archive: "/conversation/archive",
 } as const;
 
@@ -288,7 +288,8 @@ export async function getConversationHistory(
     };
   }
   const body = {
-    conversationId: payload.conversationId,
+    date: payload.date,
+    characterId: payload.characterId,
     paginationOptions: { page, limit },
   };
   const raw = await request.post<unknown>(CONVERSATION_API.history, body);

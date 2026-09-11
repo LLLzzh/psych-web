@@ -12,6 +12,7 @@ export interface ConversationListItem {
   brief: string;
   createTime: number;
   updateTime: number;
+  date?: string;
   characterId?: string;
   characterName?: string;
   characterImage?: string;
@@ -54,6 +55,8 @@ export interface GetConversationListResponse {
 
 export interface GetConversationHistoryRequest {
   conversationId: string;
+  date?: string;
+  characterId?: string;
   page?: number;
   limit?: number;
 }
