@@ -6,7 +6,7 @@ import {
   type ChatMessage,
 } from "../store/chatStore";
 import { useAuthStore } from "../store/authStore";
-import { createConversation, finishConversation } from "../apis/conversation";
+import { archiveConversation, createConversation } from "../apis/conversation";
 import { getModelAndBgImage } from "../apis/config";
 import { Sidebar } from "./Sidebar";
 import { ChatArea } from "./ChatArea";
@@ -361,7 +361,7 @@ function ChatPage() {
 
     if (conversationId) {
       try {
-        await finishConversation(conversationId);
+        await archiveConversation(conversationId);
       } catch (finishError) {
         console.error("归档会话失败:", finishError);
         message.warning("对话已结束，但历史记录同步失败，请稍后重试");

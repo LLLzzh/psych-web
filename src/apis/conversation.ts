@@ -16,7 +16,7 @@ const CONVERSATION_API = {
   create: "/conversation/create",
   list: "/conversation/list",
   history: "/conversation/get_single",
-  finish: "/conversation/finish",
+  archive: "/conversation/archive",
 } as const;
 
 const DEFAULT_PAGE = 1;
@@ -295,7 +295,7 @@ export async function getConversationHistory(
   return normalizeGetConversationHistoryResponse(raw);
 }
 
-export async function finishConversation(conversationId: string): Promise<void> {
+export async function archiveConversation(conversationId: string): Promise<void> {
   if (!conversationId || USE_CONVERSATION_MOCK) return;
-  await request.post<unknown>(CONVERSATION_API.finish, { conversationId });
+  await request.post<unknown>(CONVERSATION_API.archive, { conversationId });
 }
