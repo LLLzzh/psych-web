@@ -18,6 +18,8 @@ interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
   isDesktopLayout: boolean;
+  userAvatar?: string;
+  onEditProfile: () => void;
 }
 
 export function Sidebar({
@@ -29,6 +31,8 @@ export function Sidebar({
   onEnterVoiceMode,
   collapsed,
   isDesktopLayout,
+  userAvatar,
+  onEditProfile,
 }: SidebarProps) {
   const { theme, toggleTheme } = useConfigStore();
 
@@ -56,7 +60,7 @@ export function Sidebar({
   };
 
   const layoutClassName = isDesktopLayout
-    ? `h-full opacity-100 [filter:none] [backdrop-filter:none] rounded-bl-[0px] rounded-tr-[20px] rounded-br-[20px] flex-col items-center pt-12 ${
+    ? `h-full min-h-0 opacity-100 [filter:none] [backdrop-filter:none] rounded-bl-[0px] rounded-tr-[20px] rounded-br-[20px] flex-col items-center pt-[clamp(1rem,4vh,3rem)] pb-2 ${
         collapsed ? "w-20" : "w-76"
       }`
     : "h-16 w-full opacity-80 filter-[drop-shadow(0px_4px_5px_rgba(134,141,187,0.05))_drop-shadow(0px_0px_30px_rgba(0,0,0,0.02))] [backdrop-filter:blur(10px)] rounded-b-[10px] flex-row items-center py-2";
@@ -77,7 +81,8 @@ export function Sidebar({
             isConnecting={isConnecting}
             onEndConversation={onEndConversation}
             onViewConversationRecords={onViewConversationRecords}
-            onLogout={handleLogout}
+            userAvatar={userAvatar}
+            onEditProfile={onEditProfile}
           />
         )}
 
@@ -106,6 +111,8 @@ export function Sidebar({
                   theme={theme}
                   settingsMenuItems={settingsMenuItems}
                   onSettingsClick={handleSettingsClick}
+                  userAvatar={userAvatar}
+                  onEditProfile={onEditProfile}
                 />
               </div>
             )}

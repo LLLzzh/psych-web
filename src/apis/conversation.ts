@@ -15,7 +15,8 @@ import type {
 const CONVERSATION_API = {
   create: "/conversation/create",
   list: "/conversation/list",
-  history: "/conversation/get",
+  history: "/conversation/get_single",
+  archive: "/conversation/archive",
 } as const;
 
 const DEFAULT_PAGE = 1;
@@ -266,7 +267,7 @@ export async function getConversationList(
       msg: "success",
     };
   }
-  const body = { page, limit };
+  const body = { paginationOptions: { page, limit } };
   const raw = await request.post<unknown>(CONVERSATION_API.list, body);
   return normalizeGetConversationListResponse(raw);
 }
@@ -288,9 +289,13 @@ export async function getConversationHistory(
   }
   const body = {
     conversationId: payload.conversationId,
-    page,
-    limit,
+    paginationOptions: { page, limit },
   };
   const raw = await request.post<unknown>(CONVERSATION_API.history, body);
   return normalizeGetConversationHistoryResponse(raw);
+}
+
+export async function archiveConversation(conversationId: string): Promise<void> {
+  if (!conversationId || USE_CONVERSATION_MOCK) return;
+  await request.post<unknown>(CONVERSATION_API.archive, { conversationId });
 }

@@ -6,7 +6,7 @@ import {
   type ChatMessage,
 } from "../store/chatStore";
 import { useAuthStore } from "../store/authStore";
-import { createConversation } from "../apis/conversation";
+import { archiveConversation, createConversation } from "../apis/conversation";
 import { getModelAndBgImage } from "../apis/config";
 import { Sidebar } from "./Sidebar";
 import { ChatArea } from "./ChatArea";
@@ -28,6 +28,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } 
 import { useConfigStore } from "../store/configStore";
 import { useCharacterStore } from "../store/characterStore";
 import { MESSAGE_ROLE } from "../types/conversation";
+import { useProfileStore } from "../store/profileStore";
+import { StudentProfileModal } from "./StudentProfileModal";
 
 const HIDDEN_LAYOUT_SWITCH_HOT_ZONE_SIZE = 44;
 const HIDDEN_LAYOUT_SWITCH_TAP_COUNT = 5;
@@ -53,6 +55,8 @@ function ChatPage() {
   const [isMobileVoiceMode, setIsMobileVoiceMode] = useState(false);
   const [isMobileRecording, setIsMobileRecording] = useState(false);
   const [hasUnreadCurrent, setHasUnreadCurrent] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const { profile, loadProfile, clearProfile } = useProfileStore();
   const {
     isDesktopLayout,
     isMobileLayout,
@@ -77,6 +81,7 @@ function ChatPage() {
   } = useConversationSwitcher({
     enabled: isDesktopLayout,
     currentConversationId,
+    characterId: selectedCharacter?.backendCharacterId ?? selectedCharacter?.id,
   });
   
   const hasConversationStartedRef = useRef(false);
@@ -149,8 +154,12 @@ function ChatPage() {
   useEffect(() => {
     if (!userId || !token) {
       navigate(pathLogin(unitUri));
+      return;
     }
-  }, [userId, token, navigate, unitUri]);
+    void loadProfile().catch((error) => {
+      console.error("获取学生资料失败:", error);
+    });
+  }, [userId, token, navigate, unitUri, loadProfile]);
 
   useEffect(() => {
     const unitId = info?.unitId;
@@ -322,6 +331,7 @@ function ChatPage() {
 
   const handleLogout = () => {
     clearAuth();
+    clearProfile();
     clearSelectedCharacter();
     selectCurrentConversation();
     setCurrentConversationId(null);
@@ -329,12 +339,13 @@ function ChatPage() {
     navigate(pathLogin(unitUri));
   };
 
-  const handleEndConversation = () => {
+  const handleEndConversation = async () => {
     if (!hasConversationStarted) {
       message.warning("请先开始对话");
       return;
     }
 
+    const conversationId = currentConversationIdRef.current;
     stopTTSPlayback();
     setEndConversationSignal((prev) => prev + 1);
     void stopASR();
@@ -347,6 +358,15 @@ function ChatPage() {
     currentConversationIdRef.current = null;
     setIsMobileVoiceMode(false);
     setIsMobileRecording(false);
+
+    if (conversationId) {
+      try {
+        await archiveConversation(conversationId);
+      } catch (finishError) {
+        console.error("归档会话失败:", finishError);
+        message.warning("对话已结束，但历史记录同步失败，请稍后重试");
+      }
+    }
     clearSelectedCharacter();
 
     message.success("对话已结束");
@@ -356,7 +376,6 @@ function ChatPage() {
   const handleViewConversationRecords = () => {
     stopTTSPlayback();
     void stopASR();
-    clearSelectedCharacter();
     navigate(pathRecords(unitUri));
   };
 
@@ -465,6 +484,8 @@ function ChatPage() {
             collapsed={isSidebarCollapsed}
             onToggle={toggleSidebar}
             isDesktopLayout={isDesktopLayout}
+            userAvatar={profile?.avatar}
+            onEditProfile={() => setIsProfileOpen(true)}
           />
         </div>
 
@@ -489,7 +510,7 @@ function ChatPage() {
             <div
               className={`relative flex min-h-0 flex-1 ${
                 theme === "dark" && isDesktopLayout
-                  ? "rounded-[50px] bg-[rgba(0,0,0,0.2)] backdrop-blur-[15px] overflow-hidden"
+                  ? "rounded-[50px] border border-white/10 bg-[rgba(24,28,36,0.48)] shadow-[0_24px_70px_rgba(10,14,24,0.16)] backdrop-blur-[18px] overflow-hidden"
                   : ""
               }`}
             >
@@ -500,6 +521,7 @@ function ChatPage() {
                 isHistoryMode={isHistoryMode}
                 isLoading={isHistoryLoading}
                 assistantAvatar={displayedAssistantAvatar}
+                userAvatar={profile?.avatar}
               />
             </div>
           </div>
@@ -567,6 +589,7 @@ function ChatPage() {
         isRecording={isMobileRecording}
         isMobileLayout={isMobileLayout}
       />
+      <StudentProfileModal open={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
     </div>
   );
 }

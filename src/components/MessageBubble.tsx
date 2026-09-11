@@ -18,10 +18,10 @@ export function MessageBubble({ message, theme, isDesktopLayout }: MessageBubble
   const lightAssistantClassName =
     "bg-white text-gray-800 drop-shadow-[3.6px_3.6px_14.4px_#E9F1FC] backdrop-blur-[5px] rounded-[15px]";
   const darkUserClassName = isDesktopLayout
-    ? "text-white [background:rgba(0,0,0,0.3)] shadow-none backdrop-blur-[25px] rounded-[30px]"
+    ? "text-white [background:rgba(25,29,38,0.82)] border border-white/10 shadow-[0_12px_30px_rgba(9,13,23,0.12)] backdrop-blur-[25px] rounded-[30px]"
     : "text-white [background:linear-gradient(90deg,rgba(150,192,255,0.5)_0%,rgba(130,137,247,0.5)_100%)] shadow-[2.475px_2.475px_9.9px_rgba(45,43,81,0.03)] backdrop-blur-[3.4375px] rounded-[10.3125px]";
   const darkAssistantClassName =
-    "bg-[rgba(0,0,0,0.3)] text-gray-100 backdrop-blur-[25px] rounded-[30px]";
+    "bg-[rgba(25,29,38,0.82)] border border-white/10 text-white shadow-[0_12px_30px_rgba(9,13,23,0.12)] backdrop-blur-[25px] rounded-[30px]";
 
   const bubbleClassName =
     message.type === "user"

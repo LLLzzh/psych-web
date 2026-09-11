@@ -113,10 +113,10 @@ export function InputArea({
     ? "px-8 pb-8 pt-4 h-44 mb-24 mx-[clamp(2rem,10vw,10rem)]"
     : `px-4 pb-4 pt-2 h-18 mb-16 mx-4 ${isMobileVoiceMode ? "hidden" : ""}`;
   const panelClassName = isDesktopLayout
-    ? `w-full h-44 rounded-[20px] pl-11 pr-[clamp(1rem,5.2vw,5.75rem)] pt-3 flex items-start bg-[rgba(255,255,255,0.3)] border-2 border-white drop-shadow-[0_0_30px_rgba(0,0,0,0.02)] backdrop-blur-[10px] ${
+    ? `w-full h-44 rounded-[20px] pl-11 pr-[clamp(1rem,5.2vw,5.75rem)] pt-3 flex items-start backdrop-blur-[14px] ${
         theme === "dark"
-          ? "bg-gray-800/50 border border-gray-700 drop-shadow-none backdrop-blur-sm"
-          : ""
+          ? "bg-[#252A35]/78 border-2 border-white/65 shadow-[0_16px_45px_rgba(13,18,30,0.18)]"
+          : "bg-white/30 border-2 border-white drop-shadow-[0_0_30px_rgba(0,0,0,0.02)]"
       }`
     : "w-full h-18 rounded-[20px] pl-6 pr-[clamp(0.75rem,3.2vw,1.8rem)] pt-2 flex items-start bg-[rgba(255,255,255,0.3)] border-2 border-white drop-shadow-[0_0_30px_rgba(0,0,0,0.02)] backdrop-blur-[10px]";
   const actionGapClassName = isDesktopLayout ? "gap-9" : "gap-4";
@@ -154,8 +154,10 @@ export function InputArea({
       {inputMode === "text" ? (
         <>
         <textarea
-            className={`flex-1 h-full bg-transparent outline-none ${isDesktopLayout ? "text-[15px]" : "text-[11px] sm:text-[15px]"} resize-none pt-1 text-gray-700 placeholder-gray-400 ${
-              theme === "dark" && isDesktopLayout ? "text-gray-100" : ""
+            className={`flex-1 h-full bg-transparent outline-none ${isDesktopLayout ? "text-[15px]" : "text-[11px] sm:text-[15px]"} resize-none pt-1 ${
+              theme === "dark"
+                ? "text-white placeholder:text-white/65 caret-[#A9C9FF]"
+                : "text-gray-700 placeholder:text-gray-400"
             }`}
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}

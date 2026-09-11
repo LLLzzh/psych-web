@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { base64ToArrayBuffer, getRespContentData, type RespPayload, RespType } from "../protocol/message";
+import { base64ToArrayBuffer, getRespContentData, getRespContentFrameId, type RespPayload, RespType } from "../protocol/message";
 import { useConfigStore } from "./configStore";
 
 export interface ChatMessage {
@@ -24,13 +24,14 @@ interface ChatState {
   volumeLevel: number;
   isAcceptingASR: boolean;
   isSpeaking: boolean;
+  assistantStreams: Record<number, Record<number, string>>;
 
   addMessage: (message: ChatMessage) => void;
   upsertStreamingUserMessage: (content: string) => void;
   finalizeStreamingUserMessage: () => void;
   notifyASRFinalized: () => void;
   addThinkingMessage: () => void;
-  updateLastMessage: (content: string) => void;
+  upsertAssistantStreamMessage: (responseId: number, frameId: number, content: string) => void;
   addAudioToLastMessage: (audioUrl: string) => void;
   clearLastThinkingMessage: () => void;
   nextCmdId: () => number;
@@ -58,6 +59,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   volumeLevel: 0,
   isAcceptingASR: false,
   isSpeaking: false,
+  assistantStreams: {},
 
   addMessage: (message: ChatMessage) => {
     set((state) => ({
@@ -138,21 +140,67 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
   },
 
-  updateLastMessage: (content: string) => {
+  upsertAssistantStreamMessage: (responseId, frameId, content) => {
     set((state) => {
+      const previousFrames = state.assistantStreams[responseId] ?? {};
+      const previousFrame = previousFrames[frameId];
+
+      // 重复/重传分片只接受信息更多的版本，防止已显示的长文本回退。
+      const nextFrame =
+        previousFrame === undefined || content.length >= previousFrame.length
+          ? content
+          : previousFrame;
+      const frames = { ...previousFrames, [frameId]: nextFrame };
+      const assembledContent = Object.entries(frames)
+        .sort(([left], [right]) => Number(left) - Number(right))
+        .map(([, value]) => value)
+        .join("");
+      const messageId = `assistant-stream-${responseId}`;
+      const messageIndex = state.messages.findIndex(
+        (message) => message.id === messageId
+      );
       const messages = [...state.messages];
-      if (messages.length > 0) {
-        const lastMessage = messages[messages.length - 1];
-        messages[messages.length - 1] = {
-          ...lastMessage,
-          content:
-            lastMessage.type === "assistant" && lastMessage.isThinking
-              ? content
-              : lastMessage.content + content,
+
+      if (messageIndex >= 0) {
+        const currentMessage = messages[messageIndex];
+        // 网络重传或乱序不应让用户已经看到的内容变短。
+        if (assembledContent.length >= currentMessage.content.length) {
+          messages[messageIndex] = {
+            ...currentMessage,
+            content: assembledContent,
+            isThinking: false,
+          };
+        }
+      } else {
+        let thinkingIndex = -1;
+        for (let index = messages.length - 1; index >= 0; index--) {
+          const message = messages[index];
+          if (message.type === "assistant" && message.isThinking) {
+            thinkingIndex = index;
+            break;
+          }
+        }
+        const streamMessage: ChatMessage = {
+          id: messageId,
+          type: "assistant",
+          content: assembledContent,
+          timestamp: Date.now(),
           isThinking: false,
         };
+        if (thinkingIndex >= 0) {
+          messages[thinkingIndex] = streamMessage;
+        } else {
+          messages.push(streamMessage);
+        }
       }
-      return { messages };
+
+      return {
+        messages,
+        assistantStreams: {
+          ...state.assistantStreams,
+          [responseId]: frames,
+        },
+      };
     });
   },
 
@@ -196,7 +244,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setVolumeLevel: (level: number) => set({ volumeLevel: level }),
   setAcceptingASR: (accepting: boolean) => set({ isAcceptingASR: accepting }),
   setIsSpeaking: (speaking: boolean) => set({ isSpeaking: speaking }),
-  clearMessages: () => set({ messages: [], isAcceptingASR: false, isSpeaking: false }),
+  clearMessages: () => set({ messages: [], assistantStreams: {}, isAcceptingASR: false, isSpeaking: false }),
   clearError: () => set({ error: null }),
 }));
 
@@ -380,8 +428,7 @@ export function stopTTSPlayback(): void {
 
 export function handleResponse(response: RespPayload): void {
   const {
-    addMessage,
-    updateLastMessage,
+    upsertAssistantStreamMessage,
     finalizeStreamingUserMessage,
     upsertStreamingUserMessage,
   } = useChatStore.getState();
@@ -397,19 +444,11 @@ export function handleResponse(response: RespPayload): void {
     case RespType.ModelText:
       if (typeof contentData === "string") {
         finalizeStreamingUserMessage();
-        const messages = useChatStore.getState().messages;
-        const lastMessage = messages[messages.length - 1];
-
-        if (lastMessage && lastMessage.type === "assistant") {
-          updateLastMessage(contentData);
-        } else {
-          addMessage({
-            id: `assistant-${Date.now()}`,
-            type: "assistant",
-            content: contentData,
-            timestamp: Date.now(),
-          });
-        }
+        upsertAssistantStreamMessage(
+          response.id,
+          getRespContentFrameId(response.content) ?? 0,
+          contentData
+        );
       } else {
         console.warn("[Chat] ModelText 内容不是字符串");
       }

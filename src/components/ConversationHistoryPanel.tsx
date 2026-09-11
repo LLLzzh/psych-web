@@ -2,6 +2,7 @@ import { Spin, Empty } from "antd";
 import { useRef, useEffect } from "react";
 import { MESSAGE_ROLE, type ConversationMessageItem, type PaginationInfo } from "../types/conversation";
 import teacherAvatar from "../assets/teacher-avatar.png";
+import defaultUserAvatar from "../assets/user.svg";
 
 type ThemeMode = "light" | "dark";
 
@@ -12,8 +13,11 @@ interface ConversationHistoryPanelProps {
   isLoading: boolean;
   error: string | null;
   onLoadMore: () => void;
+  onRetry: () => void;
+  hasSelection: boolean;
   characterName?: string;
   characterImage?: string;
+  userAvatar?: string;
 }
 
 export function ConversationHistoryPanel({
@@ -23,8 +27,11 @@ export function ConversationHistoryPanel({
   isLoading,
   error,
   onLoadMore,
+  onRetry,
+  hasSelection,
   characterName,
   characterImage,
+  userAvatar,
 }: ConversationHistoryPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -67,8 +74,11 @@ export function ConversationHistoryPanel({
       </div>
 
       {error && (
-        <div className="mx-3 mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-500">
-          {error}
+        <div className="mx-3 mt-3 flex items-center justify-between gap-2 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-500">
+          <span>{error}</span>
+          <button type="button" onClick={onRetry} className="shrink-0 font-medium underline underline-offset-2">
+            重新加载
+          </button>
         </div>
       )}
 
@@ -85,7 +95,7 @@ export function ConversationHistoryPanel({
             <Empty 
               description={
                 <span className={theme === "light" ? "text-gray-400" : "text-white/50"}>
-                  选择对话查看详情
+                  {hasSelection ? "该对话暂无消息" : "从左侧选择一条对话查看详情"}
                 </span>
               }
               image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -132,6 +142,13 @@ export function ConversationHistoryPanel({
                   >
                     {item.content}
                   </div>
+                  {isStudent && (
+                    <img
+                      src={userAvatar || defaultUserAvatar}
+                      alt="我的头像"
+                      className="ml-2 h-8 w-8 shrink-0 rounded-full border border-white/60 object-cover"
+                    />
+                  )}
                 </div>
               );
             })}

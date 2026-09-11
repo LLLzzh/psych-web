@@ -51,3 +51,15 @@ export async function uploadFile(file: File): Promise<UploadedFile> {
     accessUrl: `${cdnBase}/${objectKey}`,
   };
 }
+
+/** 学生头像由后端代传 COS，避免浏览器跨域 PUT 被存储桶 CORS 拦截。 */
+export async function uploadStudentAvatar(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await request.post<UploadFileResponse>(
+    "/student/avatar/upload",
+    formData,
+    { timeout: 30000 }
+  );
+  return response.data.url;
+}

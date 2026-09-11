@@ -13,6 +13,7 @@ interface ConversationListPanelProps {
   error: string | null;
   onSelectConversation: (conversationId: string) => void;
   onLoadMore: () => void;
+  onRetry: () => void;
 }
 
 function formatTimestamp(timestamp: number): string {
@@ -52,6 +53,7 @@ export function ConversationListPanel({
   error,
   onSelectConversation,
   onLoadMore,
+  onRetry,
 }: ConversationListPanelProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -93,8 +95,11 @@ export function ConversationListPanel({
       </div>
 
       {error && (
-        <div className="mx-3 mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-500">
-          {error}
+        <div className="mx-3 mt-3 flex items-center justify-between gap-2 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-500">
+          <span>{error}</span>
+          <button type="button" onClick={onRetry} className="shrink-0 font-medium underline underline-offset-2">
+            重试
+          </button>
         </div>
       )}
 
@@ -110,7 +115,7 @@ export function ConversationListPanel({
           <div className="flex items-center justify-center h-full py-8">
             <Empty 
               description={
-                <span className={theme === "light" ? "text-gray-400" : "text-white/50"}>
+                <span className={theme === "light" ? "text-gray-400" : "text-white/72"}>
                   暂无对话记录
                 </span>
               }
@@ -151,14 +156,14 @@ export function ConversationListPanel({
                         />
                       )}
                       <span className={`text-[11px] ${
-                        theme === "light" ? "text-[#7D83A0]" : "text-white/55"
+                        theme === "light" ? "text-[#7D83A0]" : "text-white/72"
                       }`}>
                         {item.characterName}
                       </span>
                     </div>
                   )}
                   <div className={`mt-1 text-[11px] ${
-                    theme === "light" ? "text-gray-400" : "text-white/45"
+                    theme === "light" ? "text-gray-400" : "text-white/65"
                   }`}>
                     {formatTimestamp(item.updateTime)}
                   </div>

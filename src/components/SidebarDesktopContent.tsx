@@ -41,7 +41,7 @@ export function SidebarDesktopContent({
         </div>
         <div className={`px-1 text-center ${theme === "light" ? "text-[#1D2233]" : "text-white"}`}>
           <div className="font-medium">{selectedCharacter?.name || "心理老师"}</div>
-          <div className="mt-1 text-xs opacity-60">正在陪伴你</div>
+          <div className={`mt-1 text-xs ${theme === "dark" ? "text-white/75" : "opacity-60"}`}>正在陪伴你</div>
         </div>
         <SidebarActionButton
           collapsed={collapsed}

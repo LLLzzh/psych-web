@@ -9,7 +9,7 @@ import type {
   PaginationInfo,
 } from "../types/conversation";
 
-const LIST_PAGE_SIZE = 10;
+const LIST_PAGE_SIZE = 100;
 const HISTORY_PAGE_SIZE = 50;
 
 const DEFAULT_PAGINATION: PaginationInfo = {
@@ -28,6 +28,7 @@ export type ConversationView =
 interface UseConversationSwitcherOptions {
   enabled: boolean;
   currentConversationId: string | null;
+  characterId?: string;
 }
 
 function sortConversations(
@@ -100,6 +101,7 @@ async function loadCompleteConversation(
 export function useConversationSwitcher({
   enabled,
   currentConversationId,
+  characterId,
 }: UseConversationSwitcherOptions) {
   const [conversationList, setConversationList] = useState<
     ConversationListItem[]
@@ -272,10 +274,11 @@ export function useConversationSwitcher({
     () =>
       conversationList.filter(
         (conversation) =>
-          !currentConversationId ||
-          conversation.conversationId !== currentConversationId
+          (!characterId || conversation.characterId === characterId) &&
+          (!currentConversationId ||
+            conversation.conversationId !== currentConversationId)
       ),
-    [conversationList, currentConversationId]
+    [characterId, conversationList, currentConversationId]
   );
 
   return {
