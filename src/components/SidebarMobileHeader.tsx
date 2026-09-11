@@ -9,7 +9,8 @@ interface SidebarMobileHeaderProps {
   isConnecting: boolean;
   onEndConversation: () => void;
   onViewConversationRecords: () => void;
-  onLogout: () => void;
+  userAvatar?: string;
+  onEditProfile: () => void;
 }
 
 export function SidebarMobileHeader({
@@ -18,7 +19,8 @@ export function SidebarMobileHeader({
   isConnecting,
   onEndConversation,
   onViewConversationRecords,
-  onLogout,
+  userAvatar,
+  onEditProfile,
 }: SidebarMobileHeaderProps) {
   const conversationTitle = isConnecting
     ? "连接中..."
@@ -59,11 +61,11 @@ export function SidebarMobileHeader({
       <div className="flex items-center gap-3">
         <button
           type="button"
-          onClick={onLogout}
+          onClick={onEditProfile}
           className="w-10 h-10 rounded-full overflow-hidden"
-          title="退出登录"
+          title="编辑个人资料"
         >
-          <img src={user} alt="用户头像" className="w-full h-full object-cover block" />
+          <img src={userAvatar || user} alt="用户头像" className="w-full h-full object-cover block" />
         </button>
       </div>
     </div>

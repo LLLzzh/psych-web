@@ -50,7 +50,7 @@ function ConversationSwitcherItem({
   const textClassName = active
     ? "bg-[linear-gradient(90deg,#86B9FF_0%,#8185FF_100%)] bg-clip-text text-transparent"
     : isDark
-      ? "text-white/45 group-hover:text-white/65"
+      ? "text-white/72 group-hover:text-white"
       : "text-[#C9C9C9] group-hover:text-[#B5B5B5]";
   const markerClassName = active
     ? "bg-[linear-gradient(90deg,#96C0FF_0%,#8686FF_100%)]"
@@ -216,7 +216,7 @@ export function ConversationSwitcher({
             type="button"
             onClick={onRetryList}
             className={`mx-auto flex min-h-14 w-full items-center justify-center rounded-xl text-sm outline-none focus-visible:ring-2 focus-visible:ring-[#8CA4FF] ${
-              isDark ? "text-white/60" : "text-[#AAAAAA]"
+              isDark ? "text-white/78" : "text-[#AAAAAA]"
             }`}
           >
             记录加载失败，点击重试

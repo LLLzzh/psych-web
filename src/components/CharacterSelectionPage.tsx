@@ -12,7 +12,6 @@ import { useAuthStore } from "../store/authStore";
 import { useCharacterStore } from "../store/characterStore";
 import { useConfigStore } from "../store/configStore";
 import type { Character } from "../types/character";
-import selectionArc from "../assets/character-selection/selection-arc.webp";
 import campusBackground from "../assets/character-selection/campus-background.webp";
 
 interface CharacterSelectionPageProps {
@@ -117,12 +116,12 @@ function CharacterSelectionPage({ previewMode = false }: CharacterSelectionPageP
       />
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(248,251,255,0.48)_0%,rgba(239,246,255,0.32)_48%,rgba(239,236,255,0.86)_100%)]" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_88%,rgba(155,132,255,0.23),transparent_42%)]" />
-      <img
-        src={selectionArc}
-        alt=""
+      <div
         aria-hidden="true"
-        className="pointer-events-none absolute left-1/2 top-[70%] z-10 w-[142vw] max-w-none -translate-x-1/2 opacity-90 md:top-[69%] md:w-[116vw]"
-      />
+        className="pointer-events-none absolute left-1/2 top-[73%] z-10 aspect-square w-[142vw] -translate-x-1/2 rounded-full border-[22px] border-white/50 shadow-[inset_0_0_36px_rgba(146,158,255,0.18),0_0_32px_rgba(255,255,255,0.42)] md:top-[72%] md:w-[116vw] md:border-[30px]"
+      >
+        <div className="absolute inset-2 rounded-full border-2 border-dashed border-[#BFC7FF]/38 md:inset-3" />
+      </div>
 
       <header className="relative z-30 flex items-center justify-between px-5 py-5 md:px-10 md:py-7">
         <div className="flex items-center gap-2.5">
@@ -188,12 +187,6 @@ function CharacterSelectionPage({ previewMode = false }: CharacterSelectionPageP
                       : distance === 1
                         ? "calc(-1 * clamp(190px, 18vw, 250px))"
                         : "calc(-1 * clamp(360px, 34vw, 470px))";
-                const verticalShift =
-                  distance === 0
-                    ? "0px"
-                    : distance === 1
-                      ? "clamp(30px, 3vw, 46px)"
-                      : "clamp(120px, 10vw, 155px)";
                 const remoteImage = /^https?:\/\//i.test(character.image)
                   ? character.image
                   : "";
@@ -204,7 +197,7 @@ function CharacterSelectionPage({ previewMode = false }: CharacterSelectionPageP
                     aria-pressed={selected}
                     aria-label={`选择${character.name || "心理老师"}`}
                     onClick={() => setSelectedId(character.id)}
-                    className="absolute left-1/2 top-1/2 overflow-visible transition-[transform,opacity,filter] duration-500 ease-out"
+                    className="absolute bottom-0 left-1/2 overflow-visible transition-[transform,opacity,filter] duration-500 ease-out"
                     style={{
                       width: selected
                         ? "clamp(180px, 22vw, 286px)"
@@ -219,7 +212,7 @@ function CharacterSelectionPage({ previewMode = false }: CharacterSelectionPageP
                       zIndex: 10 - distance,
                       opacity: visible ? (distance === 2 ? 0.78 : 1) : 0,
                       pointerEvents: visible ? "auto" : "none",
-                      transform: `translate(calc(-50% + ${horizontalShift}), calc(-50% - 4vw + ${verticalShift})) rotate(${offset * 10}deg)`,
+                      transform: `translateX(calc(-50% + ${horizontalShift}))`,
                       filter: selected ? "none" : "saturate(.88)",
                     }}
                   >
@@ -232,13 +225,9 @@ function CharacterSelectionPage({ previewMode = false }: CharacterSelectionPageP
                       }}
                     >
                       <img
-                        src={remoteImage || character.fallbackImage || defaultTeacherImage}
+                        src={character.fallbackImage || remoteImage || defaultTeacherImage}
                         alt={character.name || "心理老师"}
-                        className="h-full w-full object-contain object-bottom"
-                        style={{
-                          transform: `scale(${distance === 0 ? 1.04 : distance === 1 ? 1.12 : 1.22})`,
-                          transformOrigin: "center bottom",
-                        }}
+                        className="h-full w-full origin-bottom scale-[0.84] object-cover object-center"
                         onError={(event) => {
                           const fallback = character.fallbackImage || defaultTeacherImage;
                           if (event.currentTarget.src !== fallback) {
@@ -267,9 +256,9 @@ function CharacterSelectionPage({ previewMode = false }: CharacterSelectionPageP
               )}
             </div>
 
-            <div className="relative z-30 mt-5 flex flex-col items-center md:mt-2">
+            <div className="relative z-30 mt-4 mb-4 flex shrink-0 flex-col items-center md:mt-3 md:mb-3">
               {characters.some((character) => character.isMock) && (
-                <span className="mb-3 rounded-full bg-white/65 px-3 py-1 text-[11px] text-[#858BA5] backdrop-blur">
+                <span className="mb-2 rounded-full bg-white/65 px-3 py-1 text-[11px] text-[#858BA5] backdrop-blur">
             {isPreview ? "本地多人物 UI 预览（不发起真实对话）" : "本地多人物 UI 预览"}
                 </span>
               )}
@@ -277,11 +266,11 @@ function CharacterSelectionPage({ previewMode = false }: CharacterSelectionPageP
                 type="button"
                 onClick={handleConfirm}
                 disabled={!selectedId}
-                className="min-w-44 rounded-full bg-gradient-to-r from-[#96C0FF] to-[#8175FA] px-10 py-3 font-medium text-white shadow-[0_12px_28px_rgba(121,132,241,0.28)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:bg-[#DADADA] disabled:shadow-none"
+                className="h-12 min-w-48 rounded-full border border-white/70 bg-gradient-to-r from-[#8EBBFA] to-[#7776ED] px-9 text-[15px] font-medium tracking-[0.04em] text-white shadow-[0_10px_24px_rgba(107,119,218,0.24)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(107,119,218,0.3)] active:translate-y-px active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#DADADA] disabled:shadow-none"
               >
                 开启对话
               </button>
-              <p className="mt-4 text-xs text-[#9A9FB0]">
+              <p className="mt-2 rounded-full bg-white/45 px-3 py-1 text-[11px] text-[#747B95] backdrop-blur-sm">
                 左右滑动或点击箭头，选择发起对话的角色
               </p>
             </div>

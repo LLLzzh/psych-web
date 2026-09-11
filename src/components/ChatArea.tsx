@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MessageBubble } from "./MessageBubble";
 import teacherAvatar from "../assets/teacher-avatar.png";
 import { useCharacterStore } from "../store/characterStore";
+import defaultUserAvatar from "../assets/user.svg";
 
 const DEFAULT_BOTTOM_INSET = 128;
 const BOTTOM_GAP = 16;
@@ -17,6 +18,7 @@ interface ChatAreaProps {
   isHistoryMode?: boolean;
   isLoading?: boolean;
   assistantAvatar?: string;
+  userAvatar?: string;
 }
 
 export function ChatArea({
@@ -26,6 +28,7 @@ export function ChatArea({
   isHistoryMode = false,
   isLoading = false,
   assistantAvatar: assistantAvatarOverride,
+  userAvatar,
 }: ChatAreaProps) {
   const liveMessages = useChatStore((state) => state.messages);
   const { theme } = useConfigStore();
@@ -232,14 +235,14 @@ export function ChatArea({
         {renderedIsHistoryMode && (
           <div
             className={`pointer-events-none sticky top-3 z-10 mb-4 flex justify-center text-xs ${
-              theme === "light" ? "text-[#A1A1A1]" : "text-white/45"
+              theme === "light" ? "text-[#A1A1A1]" : "text-white/75"
             }`}
           >
             <span
               className={`rounded-full px-3 py-1.5 ${
                 theme === "light"
                   ? "bg-white/80 shadow-[0_5px_18px_rgba(156,178,218,0.1)]"
-                  : "bg-black/30 backdrop-blur-xl"
+                  : "border border-white/15 bg-black/50 backdrop-blur-xl"
               }`}
             >
               历史记录 · 只读
@@ -254,10 +257,10 @@ export function ChatArea({
           {renderedMessages.length === 0 ? (
             <div
               className={`flex h-full min-h-[240px] flex-col items-center justify-center ${
-                theme === "light" ? "text-gray-400" : "text-gray-500"
+                theme === "light" ? "text-gray-400" : "text-white/72"
               }`}
             >
-              <div className="mb-2 text-lg font-medium">暂无消息</div>
+              <div className={`mb-2 text-lg font-medium ${theme === "dark" ? "text-white/85" : ""}`}>暂无消息</div>
               {!renderedIsHistoryMode && (
                 <p className="text-sm">
                   试着说点什么，比如“我最近有点不开心”
@@ -278,9 +281,7 @@ export function ChatArea({
                       <img
                         src={assistantAvatar}
                         alt="老师头像"
-                        className={`mr-2 mt-1 h-8 w-8 rounded-full object-cover ${
-                          isDesktopLayout ? "hidden" : ""
-                        }`}
+                        className="mr-2 mt-1 h-9 w-9 shrink-0 rounded-full border border-white/60 object-cover shadow-sm"
                       />
                     )}
                     <MessageBubble
@@ -288,6 +289,13 @@ export function ChatArea({
                       theme={theme}
                       isDesktopLayout={isDesktopLayout}
                     />
+                    {message.type === "user" && (
+                      <img
+                        src={userAvatar || defaultUserAvatar}
+                        alt="我的头像"
+                        className="ml-2 mt-1 h-9 w-9 shrink-0 rounded-full border border-white/60 object-cover shadow-sm"
+                      />
+                    )}
                   </div>
                 ))}
               </div>

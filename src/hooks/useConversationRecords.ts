@@ -10,7 +10,7 @@ import type {
   PaginationInfo,
 } from "../types/conversation";
 
-const DEFAULT_LIMIT = 10;
+const DEFAULT_LIMIT = 100;
 const DEFAULT_PAGINATION: PaginationInfo = {
   total: 0,
   page: 1,
@@ -56,10 +56,12 @@ function mergeMessageList(
 
 interface UseConversationRecordsOptions {
   autoSelectFirst?: boolean;
+  characterId?: string;
 }
 
 export function useConversationRecords(options?: UseConversationRecordsOptions) {
-  const { autoSelectFirst = true } = options ?? {};
+  const { autoSelectFirst = true, characterId } = options ?? {};
+  const didInitializeRef = useRef(false);
   const listRequestIdRef = useRef(0);
   const historyRequestIdRef = useRef(0);
   const listLoadingLockRef = useRef(false);
@@ -72,7 +74,6 @@ export function useConversationRecords(options?: UseConversationRecordsOptions) 
     listPagination,
     isListLoading,
     listError,
-    listInitialized,
     messageList,
     historyPagination,
     isHistoryLoading,
@@ -89,6 +90,7 @@ export function useConversationRecords(options?: UseConversationRecordsOptions) 
     setHistoryLoading,
     setHistoryError,
     setHistoryConversationId,
+    reset,
   } = store;
 
   const loadConversationHistoryPage = useCallback(
@@ -173,7 +175,7 @@ export function useConversationRecords(options?: UseConversationRecordsOptions) 
       try {
         const response = await getConversationList({
           page,
-          limit: listPagination.limit || DEFAULT_LIMIT,
+          limit: DEFAULT_LIMIT,
         });
 
         if (requestId !== listRequestIdRef.current) {
@@ -216,7 +218,6 @@ export function useConversationRecords(options?: UseConversationRecordsOptions) 
     [
       autoSelectFirst,
       historyConversationId,
-      listPagination.limit,
       loadConversationHistoryPage,
       selectConversation,
       setConversationList,
@@ -251,14 +252,24 @@ export function useConversationRecords(options?: UseConversationRecordsOptions) 
   }, [loadConversationHistoryPage]);
 
   useEffect(() => {
-    if (!listInitialized) {
-      void refreshConversationList();
-    }
-  }, [listInitialized, refreshConversationList]);
+    if (didInitializeRef.current) return;
+    didInitializeRef.current = true;
+    reset();
+    void refreshConversationList();
+  }, [refreshConversationList, reset]);
+
+  const visibleConversationList = characterId
+    ? conversationList.filter((item) => item.characterId === characterId)
+    : conversationList;
+  const visibleSelectedConversationId = visibleConversationList.some(
+    (item) => item.conversationId === selectedConversationId
+  )
+    ? selectedConversationId
+    : null;
 
   return {
-    conversationList,
-    selectedConversationId,
+    conversationList: visibleConversationList,
+    selectedConversationId: visibleSelectedConversationId,
     listPagination,
     isListLoading,
     listError,

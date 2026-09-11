@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from "react-router-dom";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { message } from "antd";
 import { Background } from "./Background";
 import { ConversationListPanel } from "./ConversationListPanel";
@@ -7,13 +7,19 @@ import { ConversationHistoryPanel } from "./ConversationHistoryPanel";
 import { useConversationRecords } from "../hooks/useConversationRecords";
 import { useConfigStore } from "../store/configStore";
 import { CONFIG } from "../config";
-import { pathCharacters } from "../paths";
+import { pathChat } from "../paths";
+import { useProfileStore } from "../store/profileStore";
 
 function ConversationRecordsPage() {
   const navigate = useNavigate();
   const { unitUri = CONFIG.DEFAULT_UNIT_URI } = useParams<{ unitUri: string }>();
   const { theme, toggleTheme } = useConfigStore();
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
+  const { profile, loadProfile } = useProfileStore();
+
+  useEffect(() => {
+    if (!profile) void loadProfile().catch(() => undefined);
+  }, [loadProfile, profile]);
 
   const {
     conversationList,
@@ -25,6 +31,7 @@ function ConversationRecordsPage() {
     historyPagination,
     isHistoryLoading,
     historyError,
+    refreshConversationList,
     loadMoreConversationList,
     selectConversation,
     loadMoreHistory,
@@ -117,7 +124,7 @@ function ConversationRecordsPage() {
               {/* Back Button */}
               <button
                 type="button"
-                onClick={() => navigate(pathCharacters(unitUri))}
+                onClick={() => navigate(pathChat(unitUri))}
                 className="flex items-center gap-2 px-4 py-2 rounded-[10px] text-sm font-medium transition-all bg-gradient-to-r from-[#96C0FF] to-[#8686FF] text-white hover:opacity-90"
               >
                 <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -145,6 +152,9 @@ function ConversationRecordsPage() {
                 onLoadMore={() => {
                   void loadMoreConversationList();
                 }}
+                onRetry={() => {
+                  void refreshConversationList();
+                }}
               />
             </div>
 
@@ -160,8 +170,15 @@ function ConversationRecordsPage() {
                 onLoadMore={() => {
                   void loadMoreHistory();
                 }}
+                onRetry={() => {
+                  if (selectedConversationId) {
+                    void selectConversation(selectedConversationId);
+                  }
+                }}
+                hasSelection={Boolean(selectedConversationId)}
                 characterName={selectedConversation?.characterName}
                 characterImage={selectedConversation?.characterImage}
+                userAvatar={profile?.avatar}
               />
             </div>
           </div>

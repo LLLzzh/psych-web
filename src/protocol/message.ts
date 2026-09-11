@@ -162,6 +162,14 @@ export function getRespContentFinish(content: RespContent): "stop" | "null" | un
   return undefined;
 }
 
+export function getRespContentFrameId(content: RespContent): number | undefined {
+  if (!content || typeof content !== "object" || !("id" in content)) {
+    return undefined;
+  }
+
+  return typeof content.id === "number" ? content.id : undefined;
+}
+
 // 消息编码函数
 export function encodeMessage(msg: Message, meta: Meta): ArrayBuffer {
   // 1. 序列化Message对象

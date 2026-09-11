@@ -1,11 +1,11 @@
 import request from "../utils/request";
 import { getUnitByUri } from "./unit";
 import type { Character, GetCharactersResponse } from "../types/character";
-import mockCharacter1 from "../assets/character-selection/mock-character-1.webp";
-import mockCharacter2 from "../assets/character-selection/mock-character-2.webp";
+import mockCharacter1 from "../assets/character-selection/mock-character-1-upright.png";
+import mockCharacter2 from "../assets/character-selection/mock-character-2-upright.png";
 import mockCharacter3 from "../assets/character-selection/mock-character-3.webp";
-import mockCharacter4 from "../assets/character-selection/mock-character-4.webp";
-import mockCharacter5 from "../assets/character-selection/mock-character-5.webp";
+import mockCharacter4 from "../assets/character-selection/mock-character-4-upright.png";
+import mockCharacter5 from "../assets/character-selection/mock-character-5-upright.png";
 import mockCampusBackground from "../assets/character-selection/campus-background.webp";
 
 export interface ModelAndBgImageResponse {
@@ -112,8 +112,15 @@ export async function getCharacters(unitId: string): Promise<GetCharactersRespon
     "刘强老师",
     "王丽老师",
   ];
-  const characters = (raw.characters ?? raw.data?.characters ?? [])
-    .filter((character) => character.id && character.status !== 0)
+  const availableCharacters = (raw.characters ?? raw.data?.characters ?? [])
+    .filter((character) => character.id && character.status !== 0);
+  // 后端历史配置中可能同时存在通用“心理老师”和已命名角色，且两者使用
+  // 同一人物图片。已有具体角色时不再展示通用占位角色，避免轮播重复。
+  const characters = availableCharacters
+    .filter(
+      (character) =>
+        character.name !== "心理老师" || availableCharacters.length === 1
+    )
     .sort((left, right) => {
       const leftIndex = preferredCharacterOrder.indexOf(left.name);
       const rightIndex = preferredCharacterOrder.indexOf(right.name);
@@ -124,6 +131,7 @@ export async function getCharacters(unitId: string): Promise<GetCharactersRespon
     });
   const localImageByName: Record<string, string> = {
     "福福老师": mockCharacter1,
+    "心理老师": mockCharacter1,
     "张文老师": mockCharacter2,
     "张倩老师": mockCharacter3,
     "刘强老师": mockCharacter4,

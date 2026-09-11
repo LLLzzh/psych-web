@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useParams } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, useParams } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import Login from "./components/Login";
 import { useAuthStore } from "./store/authStore";
@@ -15,6 +15,14 @@ const ConversationRecordsPage = lazy(
 const CharacterSelectionPage = lazy(
   () => import("./components/CharacterSelectionPage")
 );
+
+function RouteLoading() {
+  return (
+    <div className="route-loading-screen" aria-label="页面加载中">
+      <div className="route-loading-glow" />
+    </div>
+  );
+}
 
 function PrivateRoute({ children }: { children: ReactNode }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated());
@@ -37,6 +45,7 @@ function CharacterRoute({ children }: { children: ReactNode }) {
 }
 
 function App() {
+  const location = useLocation();
   const d = CONFIG.DEFAULT_UNIT_URI;
   const legacyLogin = d ? <Navigate to={pathLogin(d)} replace /> : <Login />;
   const legacyChat = d ? (
@@ -44,7 +53,7 @@ function App() {
   ) : (
     <PrivateRoute>
       <CharacterRoute>
-        <Suspense fallback={null}>
+        <Suspense fallback={<RouteLoading />}>
           <ChatPage />
         </Suspense>
       </CharacterRoute>
@@ -54,20 +63,21 @@ function App() {
     <Navigate to={pathRecords(d)} replace />
   ) : (
     <PrivateRoute>
-      <Suspense fallback={null}>
+      <Suspense fallback={<RouteLoading />}>
         <ConversationRecordsPage />
       </Suspense>
     </PrivateRoute>
   );
 
   return (
-    <Routes>
+    <div key={location.pathname} className="route-page-enter">
+    <Routes location={location}>
       <Route path="/:unitUri/login" element={<Login />} />
       <Route
         path="/:unitUri/characters-preview"
         element={
           import.meta.env.DEV ? (
-            <Suspense fallback={null}>
+            <Suspense fallback={<RouteLoading />}>
               <CharacterSelectionPage previewMode />
             </Suspense>
           ) : (
@@ -79,7 +89,7 @@ function App() {
         path="/:unitUri/characters"
         element={
           <PrivateRoute>
-            <Suspense fallback={null}>
+            <Suspense fallback={<RouteLoading />}>
               <CharacterSelectionPage />
             </Suspense>
           </PrivateRoute>
@@ -90,7 +100,7 @@ function App() {
         element={
           <PrivateRoute>
             <CharacterRoute>
-              <Suspense fallback={null}>
+              <Suspense fallback={<RouteLoading />}>
                 <ChatPage />
               </Suspense>
             </CharacterRoute>
@@ -101,7 +111,7 @@ function App() {
         path="/:unitUri/records"
         element={
           <PrivateRoute>
-            <Suspense fallback={null}>
+            <Suspense fallback={<RouteLoading />}>
               <ConversationRecordsPage />
             </Suspense>
           </PrivateRoute>
@@ -115,7 +125,7 @@ function App() {
             <Navigate to={pathCharacters(d)} replace />
           ) : (
             <PrivateRoute>
-              <Suspense fallback={null}>
+              <Suspense fallback={<RouteLoading />}>
                 <CharacterSelectionPage />
               </Suspense>
             </PrivateRoute>
@@ -126,6 +136,7 @@ function App() {
       <Route path="/records" element={legacyRecords} />
       <Route path="/" element={<Navigate to={pathChat(d)} replace />} />
     </Routes>
+    </div>
   );
 }
 
