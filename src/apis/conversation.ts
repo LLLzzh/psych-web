@@ -226,7 +226,7 @@ export function createConversationOnUnload(): void {
 }
 
 export async function createConversation(
-  payload: CreateConversationRequest = {}
+  payload: CreateConversationRequest
 ): Promise<CreateConversationResponse> {
   if (USE_CONVERSATION_MOCK) {
     const conversationId = `mock-conv-${Date.now()}`;
