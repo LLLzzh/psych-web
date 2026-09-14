@@ -102,8 +102,13 @@ export function useConversationRecords(options?: UseConversationRecordsOptions) 
       setHistoryError(null);
 
       try {
+        const selectedConversation = useConversationStore
+          .getState()
+          .conversationList.find((item) => item.conversationId === conversationId);
         const response = await getConversationHistory({
           conversationId,
+          date: selectedConversation?.date,
+          characterId: selectedConversation?.characterId,
           page,
           limit: historyPagination.limit || DEFAULT_LIMIT,
         });

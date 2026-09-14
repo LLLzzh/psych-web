@@ -5,7 +5,7 @@ import sidebarIcon from "../assets/sidebar.png";
 
 interface SidebarMobileHeaderProps {
   onEnterVoiceMode: () => void;
-  hasConversationStarted: boolean;
+  canEndConversation: boolean;
   isConnecting: boolean;
   onEndConversation: () => void;
   onViewConversationRecords: () => void;
@@ -15,7 +15,7 @@ interface SidebarMobileHeaderProps {
 
 export function SidebarMobileHeader({
   onEnterVoiceMode,
-  hasConversationStarted,
+  canEndConversation,
   isConnecting,
   onEndConversation,
   onViewConversationRecords,
@@ -32,9 +32,9 @@ export function SidebarMobileHeader({
       <button
           type="button"
           onClick={onEndConversation}
-          disabled={!hasConversationStarted}
+          disabled={!canEndConversation}
           className={`px-3 h-10 w-10 rounded-full text-[12px] text-white bg-[rgba(0,0,0,0.25)] ${
-            !hasConversationStarted ? "opacity-50 cursor-not-allowed" : ""
+            !canEndConversation ? "opacity-50 cursor-not-allowed" : ""
           }`}
           title={conversationTitle}
         >

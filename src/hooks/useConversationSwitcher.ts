@@ -73,14 +73,16 @@ function mergeMessages(
 }
 
 async function loadCompleteConversation(
-  conversationId: string
+  conversation: ConversationListItem
 ): Promise<ConversationMessageItem[]> {
   let page = 1;
   let messages: ConversationMessageItem[] = [];
 
   while (true) {
     const response = await getConversationHistory({
-      conversationId,
+      conversationId: conversation.conversationId,
+      date: conversation.date,
+      characterId: conversation.characterId,
       page,
       limit: HISTORY_PAGE_SIZE,
     });
@@ -215,7 +217,13 @@ export function useConversationSwitcher({
 
       setIsHistoryLoading(true);
       try {
-        const messages = await loadCompleteConversation(conversationId);
+        const conversation = conversationList.find(
+          (item) => item.conversationId === conversationId
+        );
+        if (!conversation) {
+          throw new Error("未找到该日期的对话记录");
+        }
+        const messages = await loadCompleteConversation(conversation);
         if (requestId !== historyRequestIdRef.current) {
           return;
         }
@@ -237,7 +245,7 @@ export function useConversationSwitcher({
         }
       }
     },
-    [enabled, isHistoryLoading, view]
+    [conversationList, enabled, isHistoryLoading, view]
   );
 
   const retryHistoryConversation = useCallback(async () => {

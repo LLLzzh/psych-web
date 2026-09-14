@@ -44,6 +44,19 @@ function formatTimestamp(timestamp: number): string {
   });
 }
 
+function formatConversationDate(dateValue?: string): string {
+  if (!dateValue) return "历史对话";
+  const [year, month, day] = dateValue.split("-").map(Number);
+  if (!year || !month || !day) return dateValue;
+  const today = new Date();
+  const target = new Date(year, month - 1, day);
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const dayDiff = Math.round((todayStart.getTime() - target.getTime()) / 86400000);
+  if (dayDiff === 0) return "今天";
+  if (dayDiff === 1) return "昨天";
+  return `${month}月${day}日`;
+}
+
 export function ConversationListPanel({
   theme,
   conversationList,
@@ -144,7 +157,7 @@ export function ConversationListPanel({
                   <div className={`line-clamp-1 text-sm ${
                     theme === "light" ? "text-[#1D2233]" : "text-white"
                   }`}>
-                    {item.brief || "新对话"}
+                    {formatConversationDate(item.date)}
                   </div>
                   {item.characterName && (
                     <div className="mt-1 flex items-center gap-1.5">
