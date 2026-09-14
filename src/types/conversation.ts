@@ -32,7 +32,7 @@ export interface ConversationMessageItem {
 }
 
 export interface CreateConversationRequest {
-  [key: string]: never;
+  characterId: string;
 }
 
 export interface CreateConversationResponse {

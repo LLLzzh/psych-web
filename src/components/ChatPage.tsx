@@ -90,6 +90,12 @@ function ChatPage() {
   const currentConversationIdRef = useRef<string | null>(null);
   const startConversationPromiseRef = useRef<Promise<boolean> | null>(null);
   const hiddenLayoutSwitchTapRef = useRef({ count: 0, lastTappedAt: 0 });
+
+  const getBackendCharacterId = useCallback(() => {
+    const characterId = selectedCharacter?.backendCharacterId ?? selectedCharacter?.id ?? "";
+    return /^[0-9a-fA-F]{24}$/.test(characterId) ? characterId : "";
+  }, [selectedCharacter]);
+
   useEffect(() => {
     hasConversationStartedRef.current = hasConversationStarted;
   }, [hasConversationStarted]);
@@ -260,10 +266,11 @@ function ChatPage() {
         clearError();
         let conversationId = currentConversationIdRef.current;
         if (!conversationId) {
-          if (!selectedCharacter?.id) {
+          const characterId = getBackendCharacterId();
+          if (!characterId) {
             throw new Error("characterId is empty");
           }
-          const response = await createConversation();
+          const response = await createConversation({ characterId });
           conversationId = response.conversationId;
           if (!conversationId) {
             throw new Error("conversationId is empty");
@@ -300,7 +307,7 @@ function ChatPage() {
     const ok = await startPromise;
     startConversationPromiseRef.current = null;
     return ok;
-  }, [clearError, selectedCharacter?.id]);
+  }, [clearError, getBackendCharacterId]);
 
   useEffect(() => {
     if (!isConnecting) {
