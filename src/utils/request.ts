@@ -38,7 +38,9 @@ function getAuthToken(): string | null {
 service.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     //发送请求前的处理>
-    config.headers["X-Xh-Env"] = CONFIG.XH_ENV;
+    if (CONFIG.XH_ENV) {
+      config.headers["X-Xh-Env"] = CONFIG.XH_ENV;
+    }
     if (config.headers) {
       const token = getAuthToken();
       if (token) {

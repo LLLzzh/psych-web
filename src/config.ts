@@ -41,6 +41,11 @@ export function getApiBaseUrl(): string {
 
 let wsUrl = requireViteString("VITE_WS_URL");
 
+const xhEnv =
+  typeof env.VITE_XH_ENV === "string" && env.VITE_XH_ENV.trim()
+    ? env.VITE_XH_ENV.trim()
+    : undefined;
+
 /** 与控制台 setBase 同步：更新 HTTP base，并按 …/psych → …/psych/chat 规则更新 WS */
 export function setApiBaseUrl(httpBase: string): void {
   const normalized = httpBase.trim().replace(/\/$/, "");
@@ -55,10 +60,8 @@ export const CONFIG = {
   get WS_URL() {
     return wsUrl;
   },
-  /** 请求头 X-Xh-Env，默认 test */
-  XH_ENV: (typeof env.VITE_XH_ENV === "string" && env.VITE_XH_ENV.trim()
-    ? env.VITE_XH_ENV.trim()
-    : "test") as string,
+  /** 可选请求头 X-Xh-Env；未配置或为空时不发送 */
+  XH_ENV: xhEnv,
   /** 访问 /、/login、/chat 等旧路径时使用的机构 URI 段（与链接 /{uri}/login 中一致） */
   DEFAULT_UNIT_URI:
     typeof env.VITE_DEFAULT_UNIT_URI === "string"
