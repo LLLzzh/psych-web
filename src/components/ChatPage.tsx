@@ -349,12 +349,12 @@ function ChatPage() {
   };
 
   const handleEndConversation = async () => {
-    if (!hasConversationStarted) {
+    const conversationId = currentConversationIdRef.current;
+    if (!hasConversationStarted && !conversationId) {
       message.warning("请先开始对话");
       return;
     }
 
-    const conversationId = currentConversationIdRef.current;
     stopTTSPlayback();
     setEndConversationSignal((prev) => prev + 1);
     void stopASR();
@@ -463,6 +463,7 @@ function ChatPage() {
   );
 
   const isTTSPlaying = useChatStore((state) => state.isTTSPlaying);
+  const canEndConversation = hasConversationStarted || Boolean(currentConversationId);
 
   // 使用消息发送 hook
   const { sendMessage } = useSendMessage({ sendText: sendTextWithAutoStart });
@@ -483,7 +484,7 @@ function ChatPage() {
           <Sidebar
             isConnected={isConnected}
             isAuthenticated={isAuthenticated}
-            hasConversationStarted={hasConversationStarted}
+            canEndConversation={canEndConversation}
             isConnecting={isConnecting}
             onLogout={handleLogout}
             onEndConversation={handleEndConversation}

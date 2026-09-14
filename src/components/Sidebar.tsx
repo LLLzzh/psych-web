@@ -8,7 +8,7 @@ import { SidebarDesktopFooter } from "./SidebarDesktopFooter";
 interface SidebarProps {
   isConnected: boolean;
   isAuthenticated: boolean;
-  hasConversationStarted: boolean;
+  canEndConversation: boolean;
   isConnecting: boolean;
   onLogout: () => void;
   onEndConversation: () => void;
@@ -23,7 +23,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({
-  hasConversationStarted,
+  canEndConversation,
   isConnecting,
   onLogout,
   onEndConversation,
@@ -77,7 +77,7 @@ export function Sidebar({
         {!isDesktopLayout && (
           <SidebarMobileHeader
             onEnterVoiceMode={onEnterVoiceMode}
-            hasConversationStarted={hasConversationStarted}
+            canEndConversation={canEndConversation}
             isConnecting={isConnecting}
             onEndConversation={onEndConversation}
             onViewConversationRecords={onViewConversationRecords}
@@ -103,7 +103,7 @@ export function Sidebar({
                 <SidebarDesktopContent
                   collapsed={collapsed}
                   theme={theme}
-                  hasConversationStarted={hasConversationStarted}
+                  canEndConversation={canEndConversation}
                   onEndConversation={onEndConversation}
                   onViewConversationRecords={onViewConversationRecords}
                 />

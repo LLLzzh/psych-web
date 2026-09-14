@@ -8,7 +8,7 @@ type ThemeMode = "light" | "dark";
 interface SidebarDesktopContentProps {
   collapsed: boolean;
   theme: ThemeMode;
-  hasConversationStarted: boolean;
+  canEndConversation: boolean;
   onEndConversation: () => void;
   onViewConversationRecords: () => void;
 }
@@ -16,7 +16,7 @@ interface SidebarDesktopContentProps {
 export function SidebarDesktopContent({
   collapsed,
   theme,
-  hasConversationStarted,
+  canEndConversation,
   onEndConversation,
   onViewConversationRecords,
 }: SidebarDesktopContentProps) {
@@ -49,7 +49,7 @@ export function SidebarDesktopContent({
           onClick={onEndConversation}
           theme={theme}
           variant="red"
-          disabled={!hasConversationStarted}
+          disabled={!canEndConversation}
           className="mt-12 gap-3 px-5"
         />
         <SidebarActionButton
