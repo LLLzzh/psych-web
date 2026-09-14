@@ -23,7 +23,7 @@ import {
   useConversationSwitcher,
 } from "../hooks/useConversationSwitcher";
 import { useNavigate, useParams } from "react-router-dom";
-import { message } from "antd";
+import { message, Modal } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { useConfigStore } from "../store/configStore";
 import { useCharacterStore } from "../store/characterStore";
@@ -330,13 +330,22 @@ function ChatPage() {
   }, [ensureConversationStarted, startASR]);
 
   const handleLogout = () => {
-    clearAuth();
-    clearProfile();
-    clearSelectedCharacter();
-    selectCurrentConversation();
-    setCurrentConversationId(null);
-    currentConversationIdRef.current = null;
-    navigate(pathLogin(unitUri));
+    Modal.confirm({
+      title: "是否退出登录？",
+      content: "退出后需要重新登录才能继续使用。",
+      okText: "退出登录",
+      cancelText: "取消",
+      okButtonProps: { danger: true },
+      onOk: () => {
+        clearAuth();
+        clearProfile();
+        clearSelectedCharacter();
+        selectCurrentConversation();
+        setCurrentConversationId(null);
+        currentConversationIdRef.current = null;
+        navigate(pathLogin(unitUri));
+      },
+    });
   };
 
   const handleEndConversation = async () => {

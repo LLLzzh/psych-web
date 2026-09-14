@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { message, Spin } from "antd";
+import { message, Modal, Spin } from "antd";
 import { useNavigate, useParams } from "react-router-dom";
 import { getCharacters } from "../apis/config";
 import { getUnitIdByUri } from "../apis/config";
@@ -102,8 +102,17 @@ function CharacterSelectionPage({ previewMode = false }: CharacterSelectionPageP
   };
 
   const handleLogout = () => {
-    clearAuth();
-    navigate(pathLogin(unitUri), { replace: true });
+    Modal.confirm({
+      title: "是否退出登录？",
+      content: "退出后需要重新登录才能继续使用。",
+      okText: "退出登录",
+      cancelText: "取消",
+      okButtonProps: { danger: true },
+      onOk: () => {
+        clearAuth();
+        navigate(pathLogin(unitUri), { replace: true });
+      },
+    });
   };
 
   return (
