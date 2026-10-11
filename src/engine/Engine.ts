@@ -148,8 +148,8 @@ export class Engine {
   }
 
   // 发送文本消息
-  async sendTextMessage(id: number, text: string): Promise<void> {
-    const buffer = this.handler.createTextCmd(id, text);
+  async sendTextMessage(id: number, text: string, audioEnabled: boolean): Promise<void> {
+    const buffer = this.handler.createTextCmd(id, text, audioEnabled);
     if (buffer) {
       console.info("send text");
       await this.sendBinary(buffer);
@@ -166,8 +166,8 @@ export class Engine {
   }
 
   // 发送打断消息
-  async sendInterruptMessage(id: number): Promise<void> {
-    const buffer = this.handler.createInterruptCmd(id);
+  async sendInterruptMessage(id: number, targetId?: number): Promise<void> {
+    const buffer = this.handler.createInterruptCmd(id, targetId);
     if (buffer) {
       console.info("send interrupt");
       await this.sendBinary(buffer);

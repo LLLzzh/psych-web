@@ -196,6 +196,7 @@ function ChatPage() {
     startASR,
     stopASR,
     getASRState,
+    interruptActiveTurn,
     isConnected,
     isAuthenticated,
   } = useChat(
@@ -322,10 +323,10 @@ function ChatPage() {
   }, []);
 
   const sendTextWithAutoStart = useCallback(
-    async (text: string) => {
+    async (text: string, audioEnabled: boolean) => {
       const ready = await ensureConversationStarted();
       if (!ready) return false;
-      return sendText(text);
+      return sendText(text, audioEnabled);
     },
     [ensureConversationStarted, sendText]
   );
@@ -567,6 +568,8 @@ function ChatPage() {
                 enterVoiceModeSignal={enterVoiceModeSignal}
                 onVoiceModeChange={handleVoiceModeChange}
                 isDesktopLayout={isDesktopLayout}
+                isTTSPlaying={isTTSPlaying}
+                onStopResponse={() => void interruptActiveTurn()}
               />
             )}
           </div>
