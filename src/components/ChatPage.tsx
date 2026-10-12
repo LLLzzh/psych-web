@@ -139,7 +139,7 @@ function ChatPage() {
       ? conversationList.find(
           (item) => item.conversationId === conversationView.conversationId
         )?.characterImage
-      : selectedCharacter?.fallbackImage || selectedCharacter?.image;
+      : selectedCharacter?.image || selectedCharacter?.fallbackImage;
 
   const wsAuthInfo = useMemo(
     () => ({
@@ -174,8 +174,8 @@ function ChatPage() {
       .then((res) => {
         if (res.data?.backgroundImage) setBackgroundImage(res.data.backgroundImage);
         setModelView(
-          selectedCharacter?.fallbackImage ||
-            selectedCharacter?.image ||
+          selectedCharacter?.image ||
+            selectedCharacter?.fallbackImage ||
             res.data?.modelView ||
             ""
         );

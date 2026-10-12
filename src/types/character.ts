@@ -20,6 +20,14 @@ export interface Character {
 export interface GetCharactersResponse {
   characters: Character[];
   scene: string[];
+  /** 单位默认对话背景（新配置字段）。 */
+  backgroundImage?: string;
+  /** 兼容部分接口将 payload 包在 data 中的返回格式。 */
+  data?: {
+    characters?: Character[];
+    scene?: string[];
+    backgroundImage?: string;
+  };
   code: number;
   msg: string;
 }

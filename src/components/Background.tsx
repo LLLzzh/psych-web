@@ -71,6 +71,12 @@ export function Background({
         />
         {isLight ? (
           <>
+            {customBg && (
+              <div
+                className={`absolute inset-0 bg-center bg-cover bg-no-repeat ${desktopOnlyClass}`}
+                style={{ backgroundImage: `url(${backgroundImage})` }}
+              />
+            )}
             <div className={`absolute inset-0 ${desktopOnlyClass} bg-[linear-gradient(63.63deg,#FAFCFF_66.08%,rgba(250,252,255,0.01)_87.44%,#FAFCFF_97.55%)]`} />
             <GradientGlow isDesktopLayout={isDesktopLayout} />
           </>
@@ -126,7 +132,14 @@ export function Background({
           className={`absolute inset-0 bg-center bg-cover bg-no-repeat ${mobileOnlyClass}`}
           style={{ backgroundImage: `url(${mobileBackground})` }}
         />
-        <div className={`absolute inset-0 ${desktopOnlyClass} bg-[linear-gradient(63.63deg,#FAFCFF_66.08%,rgba(250,252,255,0.01)_87.44%,#FAFCFF_97.55%)]`} />
+        {customBg ? (
+          <div
+            className={`absolute inset-0 bg-center bg-cover bg-no-repeat ${desktopOnlyClass}`}
+            style={{ backgroundImage: `url(${backgroundImage})` }}
+          />
+        ) : (
+          <div className={`absolute inset-0 ${desktopOnlyClass} bg-[linear-gradient(63.63deg,#FAFCFF_66.08%,rgba(250,252,255,0.01)_87.44%,#FAFCFF_97.55%)]`} />
+        )}
         <GradientGlow isDesktopLayout={isDesktopLayout} />
       </div>
     );
