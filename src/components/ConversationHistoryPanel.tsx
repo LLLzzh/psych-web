@@ -84,7 +84,7 @@ export function ConversationHistoryPanel({
 
       <div 
         ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto px-4 py-4"
+        className="relative min-h-0 flex-1 overflow-y-auto px-4 py-4"
       >
         {isLoading && messageList.length === 0 ? (
           <div className="flex items-center justify-center h-full">
@@ -152,6 +152,25 @@ export function ConversationHistoryPanel({
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {isLoading && messageList.length > 0 && (
+          <div
+            aria-live="polite"
+            aria-label="正在加载对话"
+            className={`absolute inset-0 z-10 flex items-center justify-center backdrop-blur-[1px] ${
+              theme === "light" ? "bg-white/70" : "bg-black/45"
+            }`}
+          >
+            <div
+              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs shadow-sm ${
+                theme === "light" ? "bg-white text-gray-500" : "bg-[#252525] text-white/75"
+              }`}
+            >
+              <Spin size="small" />
+              正在加载对话…
+            </div>
           </div>
         )}
       </div>

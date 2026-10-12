@@ -59,6 +59,11 @@ interface UseConversationRecordsOptions {
   characterId?: string;
 }
 
+interface CachedHistory {
+  messageList: ConversationMessageItem[];
+  pagination: PaginationInfo;
+}
+
 export function useConversationRecords(options?: UseConversationRecordsOptions) {
   const { autoSelectFirst = true, characterId } = options ?? {};
   const didInitializeRef = useRef(false);
@@ -66,6 +71,9 @@ export function useConversationRecords(options?: UseConversationRecordsOptions) 
   const historyRequestIdRef = useRef(0);
   const listLoadingLockRef = useRef(false);
   const historyLoadingLockRef = useRef(false);
+  // Keep already viewed conversations available during a switch. Clearing the
+  // detail panel before every response makes the UI visibly flash on a slow API.
+  const historyCacheRef = useRef(new Map<string, CachedHistory>());
 
   const store = useConversationStore();
   const {
@@ -130,6 +138,10 @@ export function useConversationRecords(options?: UseConversationRecordsOptions) 
         setMessageList(mergedList);
         setHistoryPagination(response.pagination || DEFAULT_PAGINATION);
         setHistoryConversationId(conversationId);
+        historyCacheRef.current.set(conversationId, {
+          messageList: mergedList,
+          pagination: response.pagination || DEFAULT_PAGINATION,
+        });
       } catch (error) {
         if (requestId === historyRequestIdRef.current) {
           setHistoryError(error instanceof Error ? error.message : "获取对话历史失败");
@@ -153,10 +165,24 @@ export function useConversationRecords(options?: UseConversationRecordsOptions) 
 
   const selectConversation = useCallback(
     async (conversationId: string) => {
+      const currentState = useConversationStore.getState();
+      if (
+        currentState.selectedConversationId === conversationId &&
+        currentState.historyConversationId === conversationId
+      ) {
+        return;
+      }
+
       setSelectedConversationId(conversationId);
       setHistoryConversationId(conversationId);
-      setMessageList([]);
-      setHistoryPagination(DEFAULT_PAGINATION);
+      const cachedHistory = historyCacheRef.current.get(conversationId);
+      // For a conversation that has not been visited, retain the current
+      // layout until its response arrives. The loading mask in the panel
+      // prevents stale content from being read while avoiding a blank flash.
+      if (cachedHistory) {
+        setMessageList(cachedHistory.messageList);
+      }
+      setHistoryPagination(cachedHistory?.pagination ?? DEFAULT_PAGINATION);
       historyLoadingLockRef.current = false;
       await loadConversationHistoryPage(conversationId, 1, false);
     },
