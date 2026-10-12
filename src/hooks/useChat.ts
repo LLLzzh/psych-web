@@ -19,6 +19,9 @@ export function useChat(
   const asrServiceRef = useRef<ASRService | null>(null);
   const hasSentInterruptForCurrentSpeechRef = useRef(false);
   const isInterruptPendingRef = useRef(false);
+  const activeTurnIdRef = useRef<number | null>(null);
+  const activeTurnAudioEnabledRef = useRef(false);
+  const interruptedTurnIdsRef = useRef(new Set<number>());
 
   const setConfig = useConfigStore((state) => state.setConfig);
   const {
@@ -37,8 +40,26 @@ export function useChat(
 
   // Ref-based callbacks: updated every render, so closures in useEffect / ASR
   // service always reach the latest implementation without stale captures.
-  const sendTextRef = useRef<(text: string) => Promise<boolean>>(() => Promise.resolve(false));
-  sendTextRef.current = async (text: string): Promise<boolean> => {
+  const interruptActiveTurnRef = useRef<() => Promise<boolean>>(() => Promise.resolve(false));
+  interruptActiveTurnRef.current = async (): Promise<boolean> => {
+    const targetId = activeTurnIdRef.current;
+    if (targetId === null) return true;
+
+    // 浏览器中已播放/已缓冲的音频只能由前端立即停止，不能等待服务端回执。
+    stopTTSPlayback();
+    interruptedTurnIdsRef.current.add(targetId);
+    activeTurnIdRef.current = null;
+    activeTurnAudioEnabledRef.current = false;
+    if (!enabled || CONFIG.USE_MOCK) return true;
+    const engine = engineRef.current;
+    if (!engine?.isSocketOpen()) return false;
+    const cmdId = useChatStore.getState().nextCmdId();
+    await engine.sendInterruptMessage(cmdId, targetId);
+    return true;
+  };
+
+  const sendTextRef = useRef<(text: string, audioEnabled: boolean) => Promise<boolean>>(() => Promise.resolve(false));
+  sendTextRef.current = async (text: string, audioEnabled: boolean): Promise<boolean> => {
     if (!enabled) return false;
     if (CONFIG.USE_MOCK) return true;
     const engine = engineRef.current;
@@ -46,8 +67,13 @@ export function useChat(
       console.warn("[useChat] 连接未就绪，无法发送消息");
       return false;
     }
+    // 新一轮输入必定先使旧轮失效，防止旧 TTS 缓冲继续播放或音频串轮。
+    await interruptActiveTurnRef.current();
     const cmdId = useChatStore.getState().nextCmdId();
-    await engine.sendTextMessage(cmdId, text);
+    activeTurnIdRef.current = cmdId;
+    activeTurnAudioEnabledRef.current = audioEnabled;
+    interruptedTurnIdsRef.current.delete(cmdId);
+    await engine.sendTextMessage(cmdId, text, audioEnabled);
     return true;
   };
 
@@ -60,16 +86,7 @@ export function useChat(
     await engine.sendAudioASRMessage(cmdId, audioData);
   };
 
-  const sendInterruptRef = useRef<() => Promise<boolean>>(() => Promise.resolve(false));
-  sendInterruptRef.current = async (): Promise<boolean> => {
-    if (!enabled) return false;
-    if (CONFIG.USE_MOCK) return true;
-    const engine = engineRef.current;
-    if (!engine?.isSocketOpen()) return false;
-    const cmdId = useChatStore.getState().nextCmdId();
-    await engine.sendInterruptMessage(cmdId);
-    return true;
-  };
+  const sendInterruptRef = interruptActiveTurnRef;
 
   useEffect(() => {
     if (CONFIG.USE_MOCK) {
@@ -163,6 +180,7 @@ export function useChat(
         if (isInterruptPendingRef.current) {
           isInterruptPendingRef.current = false;
         }
+        interruptedTurnIdsRef.current.add(response.id);
       }
 
       const shouldPauseFrontendHandling =
@@ -171,8 +189,17 @@ export function useChat(
         response.type !== RespType.UserText &&
         response.type !== RespType.ASRStop;
 
-      if (!shouldPauseFrontendHandling) {
-        handleResponse(response);
+      const isStaleModelResponse =
+        (response.type === RespType.ModelText || response.type === RespType.ModelAudio) &&
+        (response.id !== activeTurnIdRef.current || interruptedTurnIdsRef.current.has(response.id));
+
+      if (!shouldPauseFrontendHandling && !isStaleModelResponse) {
+        const shouldPlayAudio =
+          response.type !== RespType.ModelAudio ||
+          (response.id === activeTurnIdRef.current &&
+            activeTurnAudioEnabledRef.current &&
+            !interruptedTurnIdsRef.current.has(response.id));
+        handleResponse(response, { shouldPlayAudio });
       }
 
       if (response.type === RespType.ASRStop) {
@@ -194,7 +221,7 @@ export function useChat(
           const text = lastMessage.content.trim();
           if (text) {
             store.addThinkingMessage();
-            void sendTextRef.current(text).then((sent) => {
+            void sendTextRef.current(text, true).then((sent) => {
               if (!sent) useChatStore.getState().clearLastThinkingMessage();
             });
           }
@@ -246,13 +273,14 @@ export function useChat(
   // Stable callbacks returned to consumers – delegate to refs so the
   // identity never changes and downstream useCallback / useMemo stay stable.
   const sendText = useCallback(
-    (text: string) => sendTextRef.current(text),
+    (text: string, audioEnabled: boolean) => sendTextRef.current(text, audioEnabled),
     [],
   );
 
   const startASR = useCallback(async () => {
     if (!enabled) return false;
     if (!asrServiceRef.current) return false;
+    await interruptActiveTurnRef.current();
     hasSentInterruptForCurrentSpeechRef.current = false;
     isInterruptPendingRef.current = false;
     useChatStore.getState().setAcceptingASR(true);
@@ -278,7 +306,7 @@ export function useChat(
       store.finalizeStreamingUserMessage();
       if (text) {
         store.addThinkingMessage();
-        await sendTextRef.current(text);
+        await sendTextRef.current(text, true);
       }
     }
   }, [enabled]);
@@ -287,11 +315,17 @@ export function useChat(
     return asrServiceRef.current?.getRecordingState() || false;
   }, []);
 
+  const interruptActiveTurn = useCallback(
+    () => interruptActiveTurnRef.current(),
+    [],
+  );
+
   return {
     sendText,
     startASR,
     stopASR,
     getASRState,
+    interruptActiveTurn,
     isConnected,
     isAuthenticated,
   };

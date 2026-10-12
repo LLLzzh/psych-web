@@ -11,7 +11,7 @@ import { CONFIG } from "../config";
 
 
 interface InputAreaProps {
-  onSendText: (text: string) => void;
+  onSendText: (text: string, audioEnabled: boolean) => void;
   onStartASR: () => Promise<boolean>;
   onStopASR: () => Promise<void>;
   onGetASRState: () => boolean;
@@ -19,6 +19,8 @@ interface InputAreaProps {
   enterVoiceModeSignal: number;
   onVoiceModeChange?: (isVoiceMode: boolean) => void;
   isDesktopLayout: boolean;
+  isTTSPlaying: boolean;
+  onStopResponse: () => void;
 }
 
 export function InputArea({
@@ -30,11 +32,14 @@ export function InputArea({
   enterVoiceModeSignal,
   onVoiceModeChange,
   isDesktopLayout,
+  isTTSPlaying,
+  onStopResponse,
 }: InputAreaProps) {
   const { theme } = useConfigStore();
   const volumeLevel = useChatStore((state) => state.volumeLevel);
   const isSpeaking = useChatStore((state) => state.isSpeaking);
   const [inputMode, setInputMode] = useState<"text" | "voice">("text");
+  const [audioEnabled, setAudioEnabled] = useState(true);
   const lastEndConversationSignalRef = useRef(endConversationSignal);
   const lastEnterVoiceModeSignalRef = useRef(enterVoiceModeSignal);
 
@@ -44,7 +49,7 @@ export function InputArea({
     handleSend,
     canSend,
   } = useTextInput({
-    onSend: onSendText,
+    onSend: (text) => onSendText(text, audioEnabled),
     enabled: true,
   });
 
@@ -165,6 +170,26 @@ export function InputArea({
             placeholder="输入文字发送或点击麦克风对话..."
           />
           <div className={`flex items-center h-full ${actionGapClassName} pt-1`}>
+            <button
+              type="button"
+              onClick={() => setAudioEnabled((enabled) => !enabled)}
+              aria-label={audioEnabled ? "关闭本轮语音" : "开启本轮语音"}
+              title={audioEnabled ? "本轮将播放语音" : "本轮仅显示文字"}
+              className={`${actionButtonSizeClassName} flex items-center justify-center rounded-full border border-[#96C0FF] text-sm transition-all ${audioEnabled ? "text-[#5B78D4]" : "text-gray-400"}`}
+            >
+              {audioEnabled ? "🔊" : "🔇"}
+            </button>
+            {isTTSPlaying && (
+              <button
+                type="button"
+                onClick={onStopResponse}
+                aria-label="停止当前回复"
+                title="停止当前回复"
+                className={`${actionButtonSizeClassName} flex items-center justify-center rounded-full border border-red-300 text-red-500 transition-all`}
+              >
+                ■
+              </button>
+            )}
             <button
               onClick={handleEnterVoiceMode}
               className={`${actionButtonSizeClassName} hover:cursor-pointer hover:scale-110 border ${isDesktopLayout ? "border-[3px]" : ""} border-solid border-[#96C0FF] flex items-center justify-center rounded-full duration-200 transition-all text-gray-500 ${

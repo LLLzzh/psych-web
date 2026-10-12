@@ -26,14 +26,14 @@ const waitForNextPaint = async (): Promise<void> => {
 };
 
 interface UseSendMessageOptions {
-  sendText: (text: string) => Promise<boolean>;
+  sendText: (text: string, audioEnabled: boolean) => Promise<boolean>;
 }
 
 export function useSendMessage({ sendText }: UseSendMessageOptions) {
   const { addMessage, addThinkingMessage, clearLastThinkingMessage } = useChatStore();
 
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, audioEnabled = true) => {
       if (!text.trim()) {
         return;
       }
@@ -66,7 +66,7 @@ export function useSendMessage({ sendText }: UseSendMessageOptions) {
       });
       addThinkingMessage();
       await waitForNextPaint();
-      const sent = await sendText(text);
+      const sent = await sendText(text, audioEnabled);
       if (!sent) {
         clearLastThinkingMessage();
       }

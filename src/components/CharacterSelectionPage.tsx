@@ -49,7 +49,8 @@ function CharacterSelectionPage({ previewMode = false }: CharacterSelectionPageP
       .then((response) => {
         if (cancelled) return;
         setCharacters(response.characters);
-        setScene(response.scene[0] ?? "");
+        // 优先使用管理端上传的默认背景图，兼容旧配置中的 scene。
+        setScene(response.backgroundImage || response.scene[0] || "");
         if (response.characters.length === 0) {
           setError("学校暂未配置可用人物，请联系管理员");
           return;
@@ -96,7 +97,7 @@ function CharacterSelectionPage({ previewMode = false }: CharacterSelectionPageP
       return;
     }
     selectCharacter(character);
-    setModelView(character.fallbackImage || character.image || "");
+    setModelView(character.image || character.fallbackImage || "");
     if (scene) setBackgroundImage(scene);
     navigate(pathChat(unitUri));
   };

@@ -12,6 +12,7 @@ import {
   type ErrPayload,
   type CmdPayload,
   type RespPayload,
+  type UserTextInput,
   uint8ArrayToBase64
 } from "./message";
 import { type AuthPayload } from "./auth";
@@ -137,11 +138,11 @@ export class Handler {
   }
 
   // 创建文本命令
-  createTextCmd(id: number, text: string): ArrayBuffer | null {
+  createTextCmd(id: number, text: string, audioEnabled: boolean): ArrayBuffer | null {
     return this.createCmdMessage({
       id,
       command: 1, // CmdType.Text
-      content: text
+      content: { text, audioEnabled } satisfies UserTextInput,
     });
   }
 
@@ -155,11 +156,11 @@ export class Handler {
   }
 
   // 创建打断命令
-  createInterruptCmd(id: number): ArrayBuffer | null {
+  createInterruptCmd(id: number, targetId?: number): ArrayBuffer | null {
     return this.createCmdMessage({
       id,
       command: 5, // CmdType.Interrupt
-      content: "",
+      content: targetId === undefined ? {} : { targetId },
     });
   }
 

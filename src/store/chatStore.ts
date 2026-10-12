@@ -426,7 +426,7 @@ export function stopTTSPlayback(): void {
 // Response handler
 // ---------------------------------------------------------------------------
 
-export function handleResponse(response: RespPayload): void {
+export function handleResponse(response: RespPayload, options?: { shouldPlayAudio?: boolean }): void {
   const {
     upsertAssistantStreamMessage,
     finalizeStreamingUserMessage,
@@ -460,6 +460,9 @@ export function handleResponse(response: RespPayload): void {
 
     case RespType.ModelAudio:
       {
+        if (options?.shouldPlayAudio === false) {
+          return;
+        }
         finalizeStreamingUserMessage();
 
         let audioData: Uint8Array | null = null;

@@ -101,7 +101,16 @@ export type CmdType = typeof CmdType[keyof typeof CmdType];
 export interface CmdPayload {
   id: number;
   command: CmdType;
-  content: string; // Text为string，Audio为base64编码的字符串
+  content: string | UserTextInput | InterruptInput; // 兼容旧文本协议
+}
+
+export interface UserTextInput {
+  text: string;
+  audioEnabled?: boolean;
+}
+
+export interface InterruptInput {
+  targetId?: number;
 }
 
 // 响应类型枚举

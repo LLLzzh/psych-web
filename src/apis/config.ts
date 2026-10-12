@@ -17,14 +17,63 @@ export interface ModelAndBgImageResponse {
   };
 }
 
+/**
+ * 配置中的历史图片可能仍是 COS 的临时签名地址。学生端不能依赖签名
+ * 的过期时间，统一把对象路径映射到公开静态 CDN。
+ */
+export function resolveStaticAssetUrl(url: string | undefined | null): string {
+  if (!url) return "";
+  const cdnBase = import.meta.env.VITE_STATIC_CDN_BASE_URL?.replace(/\/+$/, "");
+  if (!cdnBase) return url;
+  try {
+    const parsed = new URL(url, window.location.origin);
+    if (
+      parsed.searchParams.has("q-sign-algorithm") ||
+      parsed.hostname.includes("cos.") ||
+      parsed.hostname.includes("myqcloud.com")
+    ) {
+      const objectPath = decodeURIComponent(parsed.pathname).replace(/^\/+/, "");
+      return objectPath ? `${cdnBase}/${objectPath}` : url;
+    }
+  } catch {
+    // 兼容相对路径和历史脏数据，保留原值交给浏览器处理。
+  }
+  return url;
+}
+
 export async function getModelAndBgImage(
   unitId: string
 ): Promise<ModelAndBgImageResponse> {
-  const res = await request.get<ModelAndBgImageResponse>(
-    "/config/get_model_and_bg_image",
-    { params: { unitId } }
-  );
-  return res;
+  // 当前 core-api 的公开配置接口是 /config/get_character；旧版本曾提供
+  // /config/get_model_and_bg_image，统一在这里兼容两种返回格式。
+  try {
+    const res = await request.get<GetCharactersResponse>("/config/get_character", {
+      params: { unitId },
+    });
+    const characters = res.characters ?? res.data?.characters ?? [];
+    const modelView = characters.find((item) => item.image)?.image ?? "";
+    const backgroundImage = res.backgroundImage ?? res.data?.backgroundImage ?? res.scene?.[0] ?? res.data?.scene?.[0] ?? "";
+    return {
+      code: res.code ?? 0,
+      msg: res.msg ?? "success",
+      data: {
+        backgroundImage: resolveStaticAssetUrl(backgroundImage),
+        modelView: resolveStaticAssetUrl(modelView),
+      },
+    };
+  } catch {
+    const res = await request.get<ModelAndBgImageResponse>(
+      "/config/get_model_and_bg_image",
+      { params: { unitId } }
+    );
+    return {
+      ...res,
+      data: {
+        backgroundImage: resolveStaticAssetUrl(res.data?.backgroundImage),
+        modelView: resolveStaticAssetUrl(res.data?.modelView),
+      },
+    };
+  }
 }
 
 export interface VoiceItem {
@@ -139,7 +188,9 @@ export async function getCharacters(unitId: string): Promise<GetCharactersRespon
   };
   const charactersWithFallback = characters.map((character) => ({
     ...character,
-    fallbackImage: localImageByName[character.name],
+    image: resolveStaticAssetUrl(character.image),
+    // 只有后端没有配置图片时才使用本地演示图；否则学校配置应优先展示。
+    fallbackImage: character.image ? undefined : localImageByName[character.name],
   }));
   const useLocalMock =
     import.meta.env.DEV && import.meta.env.VITE_CHARACTER_SELECTION_MOCK === "true";
@@ -167,7 +218,8 @@ export async function getCharacters(unitId: string): Promise<GetCharactersRespon
 
   return {
     characters: charactersWithFallback,
-    scene: raw.scene ?? raw.data?.scene ?? [],
+    scene: (raw.scene ?? raw.data?.scene ?? []).map((item) => resolveStaticAssetUrl(item)),
+    backgroundImage: resolveStaticAssetUrl(raw.backgroundImage ?? raw.data?.backgroundImage),
     code: raw.code ?? 0,
     msg: raw.msg ?? "success",
   };

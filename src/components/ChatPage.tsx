@@ -139,7 +139,7 @@ function ChatPage() {
       ? conversationList.find(
           (item) => item.conversationId === conversationView.conversationId
         )?.characterImage
-      : selectedCharacter?.fallbackImage || selectedCharacter?.image;
+      : selectedCharacter?.image || selectedCharacter?.fallbackImage;
 
   const wsAuthInfo = useMemo(
     () => ({
@@ -174,8 +174,8 @@ function ChatPage() {
       .then((res) => {
         if (res.data?.backgroundImage) setBackgroundImage(res.data.backgroundImage);
         setModelView(
-          selectedCharacter?.fallbackImage ||
-            selectedCharacter?.image ||
+          selectedCharacter?.image ||
+            selectedCharacter?.fallbackImage ||
             res.data?.modelView ||
             ""
         );
@@ -196,6 +196,7 @@ function ChatPage() {
     startASR,
     stopASR,
     getASRState,
+    interruptActiveTurn,
     isConnected,
     isAuthenticated,
   } = useChat(
@@ -322,10 +323,10 @@ function ChatPage() {
   }, []);
 
   const sendTextWithAutoStart = useCallback(
-    async (text: string) => {
+    async (text: string, audioEnabled: boolean) => {
       const ready = await ensureConversationStarted();
       if (!ready) return false;
-      return sendText(text);
+      return sendText(text, audioEnabled);
     },
     [ensureConversationStarted, sendText]
   );
@@ -567,6 +568,8 @@ function ChatPage() {
                 enterVoiceModeSignal={enterVoiceModeSignal}
                 onVoiceModeChange={handleVoiceModeChange}
                 isDesktopLayout={isDesktopLayout}
+                isTTSPlaying={isTTSPlaying}
+                onStopResponse={() => void interruptActiveTurn()}
               />
             )}
           </div>
