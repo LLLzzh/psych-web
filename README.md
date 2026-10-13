@@ -2,6 +2,8 @@
 
 这是一个基于WebSocket的聊天应用演示，实现了完整的前后端协议。
 
+GitLab 流水线已配置腾讯云 COS 测试环境自动发布、正式环境手动发布和 CDN 缓存刷新，接入步骤见 [部署说明](docs/gitlab-cos-deployment.md)。
+
 ## 协议架构
 
 ### 核心组件

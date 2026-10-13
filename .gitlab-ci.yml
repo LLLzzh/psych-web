@@ -1,0 +1,86 @@
+# 沿用 elion/elion-student 的 COS 上传与 CDN 刷新模板。
+include:
+  - project: "devops/ci-templates"
+    ref: "078b05d50486264e02187a89f351f77cb4dd32e0"
+    file: "templates/fe-deploy-template.yaml"
+
+stages:
+  - build
+  - deploy
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push"'
+      when: never
+    - if: '$CI_COMMIT_BRANCH'
+
+variables:
+  LOCAL_DIST_PATH: "dist"
+  COS_TEST_BUCKET: "psych-new-1308722423"
+  COS_TEST_REGION: "ap-shanghai"
+  CDN_TEST_DOMAIN: "psych-user.xhpolaris.com"
+  COS_PROD_BUCKET: "psych-user-1332239649"
+  COS_PROD_REGION: "ap-shanghai"
+  CDN_PROD_DOMAIN: "psych-user.aiecnu.net"
+  NPM_CONFIG_REGISTRY: "https://mirrors.cloud.tencent.com/npm/"
+
+.frontend-build:
+  image: node:22.14.0-alpine
+  stage: build
+  interruptible: true
+  before_script:
+    - npm ci --cache .npm --prefer-offline
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - .npm/
+  artifacts:
+    expire_in: 7 days
+    paths:
+      - dist/
+
+build-test:
+  extends: .frontend-build
+  script:
+    - npm run build:dev
+
+build-prod:
+  extends: .frontend-build
+  script:
+    - npm run build:prod
+
+.cos-deploy:
+  extends: .deploy
+  before_script:
+    - sh scripts/configure-cos.sh
+  script:
+    - sh scripts/deploy-cos.sh
+
+deploy-test:
+  extends: .cos-deploy
+  variables:
+    BUCKET_NAME: "$COS_TEST_BUCKET"
+    COS_REGION: "$COS_TEST_REGION"
+    CDN_DOMAIN: "$CDN_TEST_DOMAIN"
+  needs:
+    - job: build-test
+      artifacts: true
+  resource_group: psych-cos-test
+  environment:
+    name: test
+
+deploy-prod:
+  extends: .cos-deploy
+  variables:
+    BUCKET_NAME: "$COS_PROD_BUCKET"
+    COS_REGION: "$COS_PROD_REGION"
+    CDN_DOMAIN: "$CDN_PROD_DOMAIN"
+  needs:
+    - job: build-prod
+      artifacts: true
+  resource_group: psych-cos-prod
+  environment:
+    name: production
