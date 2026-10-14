@@ -183,17 +183,13 @@ export function useChat(
         interruptedTurnIdsRef.current.add(response.id);
       }
 
-      const shouldPauseFrontendHandling =
-        isInterruptPendingRef.current &&
-        response.type !== RespType.Interrupt &&
-        response.type !== RespType.UserText &&
-        response.type !== RespType.ASRStop;
-
       const isStaleModelResponse =
         (response.type === RespType.ModelText || response.type === RespType.ModelAudio) &&
         (response.id !== activeTurnIdRef.current || interruptedTurnIdsRef.current.has(response.id));
 
-      if (!shouldPauseFrontendHandling && !isStaleModelResponse) {
+      // 中断确认可能因网络或服务端版本差异延迟到达，不能用全局 pending
+      // 阻塞新一轮响应；只按 turnId 丢弃旧轮文本/音频即可。
+      if (!isStaleModelResponse) {
         const shouldPlayAudio =
           response.type !== RespType.ModelAudio ||
           (response.id === activeTurnIdRef.current &&
